@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: Engine Editorial El Día de Michoacán
+ * Plugin Name: Engine Editorial KzmCITO IA SEO
  * Plugin URI: https://kzmcito.com
  * Description: Motor editorial agentico con IA para transformación de contenidos, SEO automático y caché multilingüe. Integrado con RankMath.
  * Version: 2.0.0
@@ -104,6 +104,7 @@ class Kzmcito_IA_SEO
         require_once KZMCITO_IA_SEO_PLUGIN_DIR . 'includes/class-api-client.php';
         require_once KZMCITO_IA_SEO_PLUGIN_DIR . 'includes/class-meta-fields.php';
         require_once KZMCITO_IA_SEO_PLUGIN_DIR . 'includes/class-cache-manager.php';
+        require_once KZMCITO_IA_SEO_PLUGIN_DIR . 'includes/class-language-detector.php';
 
         // Admin UI (solo en admin)
         if (is_admin()) {
@@ -135,8 +136,9 @@ class Kzmcito_IA_SEO
             add_action('add_meta_boxes', [$this, 'register_meta_boxes']);
         }
 
-        // Frontend hooks
+        // Frontend hooks (Traducción automática)
         add_filter('the_content', [$this, 'filter_frontend_content'], 999);
+        add_filter('the_title', [$this, 'filter_frontend_title'], 999, 2);
 
         // AJAX hooks
         add_action('wp_ajax_kzmcito_process_post', [$this, 'ajax_process_post']);

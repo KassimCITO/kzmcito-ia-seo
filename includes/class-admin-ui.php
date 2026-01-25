@@ -21,8 +21,8 @@ class Kzmcito_IA_SEO_Admin_UI
     public function register_menu()
     {
         add_menu_page(
-            __('Engine Editorial IA', 'kzmcito-ia-seo'),
-            __('Engine IA', 'kzmcito-ia-seo'),
+            __('KzmCITO IA SEO', 'kzmcito-ia-seo'),
+            __('KzmCITO IA', 'kzmcito-ia-seo'),
             'manage_options',
             'kzmcito-ia-seo',
             [$this, 'render_settings_page'],
@@ -95,7 +95,7 @@ class Kzmcito_IA_SEO_Admin_UI
         ?>
         <div class="wrap">
             <h1>
-                <?php _e('Configuración del Engine Editorial IA', 'kzmcito-ia-seo'); ?>
+                <?php _e('Configuración de KzmCITO IA SEO', 'kzmcito-ia-seo'); ?>
             </h1>
 
             <form method="post" action="">
@@ -111,10 +111,10 @@ class Kzmcito_IA_SEO_Admin_UI
                         <td>
                             <select name="kzmcito_ai_model" id="kzmcito_ai_model" class="regular-text">
                                 <option value="claude-sonnet" <?php selected(get_option('kzmcito_ai_model'), 'claude-sonnet'); ?>>Claude 3 Sonnet</option>
-                                <option value="claude-opus" <?php selected(get_option('kzmcito_ai_model'), 'claude-opus'); ?>
-                                    >Claude 3 Opus</option>
-                                <option value="gemini-pro" <?php selected(get_option('kzmcito_ai_model'), 'gemini-pro'); ?>
-                                    >Gemini 1.5 Pro</option>
+                                <option value="claude-opus" <?php selected(get_option('kzmcito_ai_model'), 'claude-opus'); ?>>
+                                    Claude 3 Opus</option>
+                                <option value="gemini-pro" <?php selected(get_option('kzmcito_ai_model'), 'gemini-pro'); ?>>
+                                    Gemini 1.5 Pro</option>
                                 <option value="gpt-4" <?php selected(get_option('kzmcito_ai_model'), 'gpt-4'); ?>>GPT-4 Turbo
                                 </option>
                                 <option value="gpt-3.5" <?php selected(get_option('kzmcito_ai_model'), 'gpt-3.5'); ?>>GPT-3.5
@@ -136,7 +136,10 @@ class Kzmcito_IA_SEO_Admin_UI
                             <input type="password" name="kzmcito_api_key_claude" id="kzmcito_api_key_claude"
                                 value="<?php echo esc_attr(get_option('kzmcito_api_key_claude')); ?>" class="regular-text">
                             <p class="description">
-                                <?php _e('API Key de Anthropic (Claude)', 'kzmcito-ia-seo'); ?>
+                                <?php _e('API Key de Anthropic (Claude)', 'kzmcito-ia-seo'); ?><br>
+                                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">
+                                    <?php _e('→ Obtener API Key de Claude', 'kzmcito-ia-seo'); ?>
+                                </a>
                             </p>
                         </td>
                     </tr>
@@ -151,7 +154,10 @@ class Kzmcito_IA_SEO_Admin_UI
                             <input type="password" name="kzmcito_api_key_gemini" id="kzmcito_api_key_gemini"
                                 value="<?php echo esc_attr(get_option('kzmcito_api_key_gemini')); ?>" class="regular-text">
                             <p class="description">
-                                <?php _e('API Key de Google (Gemini)', 'kzmcito-ia-seo'); ?>
+                                <?php _e('API Key de Google (Gemini)', 'kzmcito-ia-seo'); ?><br>
+                                <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener">
+                                    <?php _e('→ Obtener API Key de Gemini', 'kzmcito-ia-seo'); ?>
+                                </a>
                             </p>
                         </td>
                     </tr>
@@ -166,7 +172,10 @@ class Kzmcito_IA_SEO_Admin_UI
                             <input type="password" name="kzmcito_api_key_openai" id="kzmcito_api_key_openai"
                                 value="<?php echo esc_attr(get_option('kzmcito_api_key_openai')); ?>" class="regular-text">
                             <p class="description">
-                                <?php _e('API Key de OpenAI (GPT)', 'kzmcito-ia-seo'); ?>
+                                <?php _e('API Key de OpenAI (GPT)', 'kzmcito-ia-seo'); ?><br>
+                                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">
+                                    <?php _e('→ Obtener API Key de OpenAI', 'kzmcito-ia-seo'); ?>
+                                </a>
                             </p>
                         </td>
                     </tr>
@@ -523,7 +532,7 @@ class Kzmcito_IA_SEO_Admin_UI
         ?>
         <div class="wrap">
             <h1>
-                <?php _e('Estadísticas del Engine Editorial', 'kzmcito-ia-seo'); ?>
+                <?php _e('Estadísticas de KzmCITO IA SEO', 'kzmcito-ia-seo'); ?>
             </h1>
 
             <div class="kzmcito-stats-grid">
