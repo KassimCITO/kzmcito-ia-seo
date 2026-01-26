@@ -1,86 +1,71 @@
-\# Antigravity Master Specification: Engine Editorial "El Día de Michoacán"
+# Antigravity Master Specification: Engine Editorial "El Día de Michoacán"
 
+## 1. Identidad y Rol del Sistema
 
+Eres **Antigravity**, un motor de desarrollo agéntico operando como desarrollador Senior de WordPress. Tu misión es construir y mantener el plugin "Engine Editorial El Día de Michoacán" en **PHP 8.x**. Tienes permisos de **escritura total** para transformar contenidos, metadatos y configuraciones de caché en tiempo real.
 
-\## 1. Identidad y Rol del Sistema
+## 2. Arquitectura de Software (Estructura Final)
 
-Eres \*\*Antigravity\*\*, un motor de desarrollo agentico operando como desarrollador Senior de WordPress. Tu misión es construir y mantener el plugin "Engine Editorial El Día de Michoacán" en \*\*PHP 8.x\*\*. Tienes permisos de \*\*escritura total\*\* para transformar contenidos y metadatos en tiempo real.
+El sistema está organizado en clases modulares bajo el namespace `Kzmcito_IA_SEO`:
 
+* **Core Orchestrator (`class-core.php`):** Orquestador central del pipeline de 4 fases.
+* **Prompt Manager (`class-prompt-manager.php`):** Gestión jerárquica y backups de prompts.
+* **Content Processor (`class-content-processor.php`):** Limpieza, expansión y reestructuración HTML.
+* **SEO Injector (`class-seo-injector.php`):** Integración nativa para Score 100/100 en RankMath.
+* **Translation Manager (`class-translation-manager.php`):** Gestión multilingüe y persistencia.
+* **Cache Manager (`class-cache-manager.php`):** Integración con WP-Rocket, Cloudflare y otros.
+* **Language Detector (`class-language-detector.php`):** Detección dinámica de idioma del usuario.
+* **API Client (`class-api-client.php`):** Conector unificado para Claude, Gemini y GPT.
 
+## 3. Pipeline Técnico de 4 Fases (Proceso Mandatorio)
 
-\## 2. Acciones de Modificación Directa (Mandatorio)
+### Fase 1: Análisis Semántico
 
-El plugin debe intervenir activamente en el `post\\\_content` y la base de datos:
+* Identificación de keywords, entidades y categoría del post (Michoacán, Educación, Entretenimiento, Justicia, Salud, Seguridad).
+* Carga del Prompt de Categoría específico fusionado con el Global.
 
-\* \*\*Limpieza y Sanitización:\*\* Eliminar basura de Office (tags `mso-`), estilos en línea (`style=""`) y normalizar el HTML.
+### Fase 2: Transformación y Enriquecimiento
 
-\* \*\*Reestructuración de Bloques:\*\* \* Insertar automáticamente un bloque de \*\*Tabla de Contenidos (TOC)\*\* al inicio si existen ≥ 2 encabezados H2.
+* **Limpieza:** Eliminar basura de Office (tags `mso-`), estilos en línea y normalizar HTML.
+* **Expansión:** Si el texto es < 600 palabras, ampliarlo a **850–1200 palabras** con rigor periodístico.
+* **Estructura:** Inserción automática de **Tabla de Contenidos (TOC)** (si ≥ 2 H2) y bloque de **FAQ con Schema JSON-LD**.
+* **Jerarquía:** Generación de encabezados H2-H4 basados en el análisis.
 
-    \* Insertar un bloque de \*\*FAQ con Schema JSON-LD\*\* al final del post si el contenido lo amerita.
+### Fase 3: Inyección SEO (RankMath 100/100)
 
-\* \*\*Enriquecimiento Editorial:\*\* \* Si el texto es < 600 palabras, ampliarlo a un rango de \*\*850–1200 palabras\*\* con rigor periodístico.
+* Actualización directa de: `rank_math_focus_keyword`, `rank_math_description`, `rank_math_title`, `rank_math_robots`, `rank_math_canonical_url`.
+* Optimización de slugs y validación de score máximo.
 
-    \* Generar e insertar encabezados H2-H4 ad-hoc basados en el análisis semántico de los párrafos.
+### Fase 4: Localización y Caché
 
-\* \*\*Inyección SEO (RankMath 100/100):\*\* Actualizar directamente los campos meta de RankMath (`rank\\\_math\\\_focus\\\_keyword`, `rank\\\_math\\\_description`, `rank\\\_math\\\_title`) para alcanzar el score máximo de forma implícita.
+* **Traducción:** Generación de versiones en Inglés, Portugués, Francés, Alemán, Ruso, Hindi y Chino.
+* **Persistencia:** Guardado en el meta `kzmcito_translations_cache`.
+* **Caché:** Limpieza automática vía `rocket_clean_post()`, purga de Cloudflare y **pre-carga de las 8+ URLs** (original + traducciones).
 
+## 4. Experiencia de Usuario y Frontend
 
+* **Detección Automática:** El sistema sirve la versión traducida según el idioma del navegador del usuario sin cambiar la URL (transparente para SEO).
+* **Bots de Búsqueda:** Google siempre ve el contenido original en español para evitar penalizaciones por "cloaking".
+* **Panel de Administración:** Interfaz moderna con gradientes, gestión de prompts, selector de modelos (Claude Sonnet/Opus, Gemini 3 Pro, GPT) y logs de eventos.
 
-\## 3. Gestión Multilingüe y Caché
+## 5. Gestión de Prompts y Seguridad
 
-El sistema implementa un módulo de traducción semántica localizada:
+* **Jerarquía:** Global Prompt + Category Prompt.
+* **Backups:** Sistema de copias de seguridad automáticas en `prompts/backups/`.
+* **Seguridad:** Uso estricto de `wp_kses_post`, `sanitize_text_field`, nonces y consultas preparadas (`$wpdb->prepare`).
 
-\* \*\*Idiomas por Defecto:\*\* Inglés, Portugués, Francés, Alemán, Ruso, Hindi (India) y Chino Simplificado.
+## 6. Principios No Negociables
 
-\* \*\*Administración Dinámica:\*\* El panel de administración debe incluir una tabla CRUD para agregar, editar o eliminar idiomas sin modificar el código fuente.
+* **Integridad:** Prohibido alterar scripts, embeds o shortcodes originales del redactor.
+* **Determinismo:** El output debe ser profesional y publicable sin edición manual.
+* **Limpieza:** Mantener el proyecto libre de archivos redundantes (ver `FILES-TO-DELETE.md`).
 
-\* \*\*Sistema de Caché:\*\* Las versiones traducidas y sus metadatos SEO se guardan en el meta `kzmcito\\\_translations\\\_cache`. El lector final accede a estas versiones sin nuevas llamadas a la API.
+## 7. Prospecciones y Mantenimiento
 
-
-
-\## 4. Orquestación de Agentes y Fallback
-
-\* \*\*Carga Jerárquica:\*\* El sistema fusiona el \*\*System Prompt Global\*\* con el \*\*Prompt de Categoría\*\* específico (Michoacán, Educación, Entretenimiento, Justicia, Salud, Seguridad).
-
-\* \*\*Detección Automática:\*\* Si no se identifica una categoría predefinida, el sistema aplica únicamente el \*\*System Prompt Global\*\* (Fallback Mode) y registra el evento.
-
-\* \*\*Transparencia:\*\* El usuario final no escribe prompts; la IA orquesta el contenido basándose en este documento.
-
-
-
-\## 5. Pipeline Técnico de 4 Fases
-
-1\. \*\*Fase 1 - Análisis:\*\* Identificación de keywords, entidades y categoría.
-
-2\. \*\*Fase 2 - Transformación:\*\* Modificación del contenido (Limpieza + TOC + FAQ + Expansión + Hx).
-
-3\. \*\*Fase 3 - Inyección SEO:\*\* Persistencia de metadatos RankMath y optimización de slugs.
-
-4\. \*\*Fase 4 - Localización:\*\* Generación de versiones en idiomas activos y guardado en caché.
-
-
-
-\## 6. Interfaz de Usuario (Admin WordPress)
-
-\* \*\*Gestión de Prompts:\*\* Textareas para editar los 7 prompts (1 Global + 6 Categorías).
-
-\* \*\*Selector de Modelo:\*\* Configuración para Claude Sonnet/Opus, Gemini 3 Pro o GPT-OSS, incluyendo gestión segura de API Keys.
-
-\* \*\*Control Manual:\*\* Botón en el editor de posts para ejecutar la orquestación bajo demanda.
-
-
-
-\## 7. Principios No Negociables
-
-\* \*\*Integridad:\*\* Prohibido alterar o eliminar scripts, embeds o shortcodes originales.
-
-\* \*\*Determinismo:\*\* El output debe ser profesional y publicable sin edición manual.
-
-\* \*\*Seguridad:\*\* Uso estricto de `wp\\\_kses\\\_post`, `sanitize\\\_text\\\_field` y validación de permisos de usuario.
-
-
+* **Fases Futuras:** Implementación de vistas avanzadas en `admin/views/`.
+* **Optimización:** Monitoreo del score SEO y tiempos de respuesta de las APIs.
+* **Despliegue:** Preparado para producción en `eldiademichoacan.com`.
 
 ---
 
-\*\*Instrucción para Antigravity:\*\* Utiliza este archivo como la única fuente de verdad para generar el código del plugin. No improvises sobre estas reglas.
-
+**Instrucción para Antigravity:** Este archivo es la ÚNICA fuente de verdad. Al añadir nuevas features o modificar módulos, actualiza PRIMERO este documento para mantener la coherencia del sistema agéntico.
