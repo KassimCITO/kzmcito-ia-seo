@@ -1,4 +1,4 @@
-# ARQUITECTURA DEL PLUGIN - Engine Editorial "El Día de Michoacán"
+# ARQUITECTURA DEL PLUGIN - KzmCITO IA SEO
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -16,22 +16,22 @@
                     │                               │
                     ▼                               ▼
         ┌─────────────────────┐         ┌─────────────────────┐
-        │   ADMIN UI          │         │   FRONTEND          │
-        │  (Admin Panel)      │         │  (Public Display)   │
+        │   ADMIN UI          │         │   FRONTEND FILTERS  │
+        │  (Admin Panel)      │         │ (Language Detector) │
         └─────────────────────┘         └─────────────────────┘
-                    │
-        ┌───────────┴───────────┐
-        │                       │
-        ▼                       ▼
-┌──────────────┐      ┌──────────────────┐
-│ Settings     │      │ Prompt Editor    │
-│ Page         │      │ Language Manager │
-└──────────────┘      └──────────────────┘
-                                │
-                                ▼
-                    ┌─────────────────────┐
-                    │   CORE ORCHESTRATOR │
-                    │   (class-core.php)  │
+                    │                              │
+        ┌───────────┴───────────┐         ┌────────┴────────┐
+        │                       │         ▼                 ▼
+        ▼                       ▼    ┌──────────┐      ┌──────────┐
+┌──────────────┐      ┌──────────────────┐  │ Content  │      │  Title   │
+│ Settings     │      │ Prompt Editor    │  │ Filter   │      │  Filter  │
+│ Page         │      │ Language Manager │  └──────────┘      └──────────┘
+└──────────────┘      └──────────────────┘         │
+                                │                  ▼
+                                ▼           ┌─────────────────────┐
+                    ┌─────────────────────┐ │   CACHE MANAGER     │
+                    │   CORE ORCHESTRATOR │ │ (rocket_clean_post) │
+                    │   (class-core.php)  │ └─────────────────────┘
                     └─────────────────────┘
                                 │
                 ┌───────────────┼───────────────┐
@@ -47,285 +47,61 @@
                                         │ PHASE 4  │
                                         │Translate │
                                         └──────────┘
+```
 
 ════════════════════════════════════════════════════════════════════════════
 
-PHASE 1: ANALYSIS (class-core.php)
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  INPUT: Post Content + Title + Categories                               │
-│                                                                          │
-│  PROCESS:                                                                │
-│  ├─ Detect Category (michoacan, educacion, etc.)                        │
-│  ├─ Load Prompts (Global + Category) ◄─── Prompt Manager               │
-│  ├─ Extract Keywords                                                     │
-│  ├─ Extract Entities                                                     │
-│  ├─ Count Words                                                          │
-│  ├─ Count Headings (H2, H3, H4)                                         │
-│  ├─ Determine if needs expansion                                        │
-│  ├─ Determine if needs TOC                                              │
-│  └─ Determine if needs FAQ                                              │
-│                                                                          │
-│  OUTPUT: Analysis Data Object                                           │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
+## 🏗️ COMPONENTES PRINCIPALES
+
+### 1. CORE ORCHESTRATOR (class-core.php)
+El motor principal que coordina el pipeline de 4 fases. Maneja la lógica de negocio y la transición entre estados.
+
+### 2. PROMPT MANAGER (class-prompt-manager.php)
+Gestiona la carga jerárquica de prompts (Global + Categoría). Incluye sistema de backups y validación de integridad.
+
+### 3. CONTENT PROCESSOR (class-content-processor.php)
+Realiza la transformación pesada del contenido: limpieza de código Office, expansión vía IA, generación de encabezados (H2-H4), inserción de TOC y FAQ.
+
+### 4. SEO INJECTOR (class-seo-injector.php)
+Integración nativa con RankMath. Genera metadatos optimizados (Focus Keyword, Meta Description, Title) basándose en el análisis del contenido para alcanzar score 100/100.
+
+### 5. TRANSLATION MANAGER (class-translation-manager.php)
+Gestiona la localización a 7+ idiomas. Utiliza modelos de IA para traducciones semánticas y mantiene una caché persistente en la base de datos.
+
+### 6. CACHE MANAGER (class-cache-manager.php)
+Integración completa con WP-Rocket. Limpia automáticamente la caché del post, purga Cloudflare y pre-carga las URLs traducidas después de cada procesamiento.
+
+### 7. LANGUAGE DETECTOR (class-language-detector.php) 🆕
+Detecta inteligentemente el idioma del navegador del usuario y sirve la versión traducida desde la caché sin cambiar la URL. Es transparente para Google (los bots siempre ven español).
 
 ════════════════════════════════════════════════════════════════════════════
 
-PHASE 2: TRANSFORMATION (class-content-processor.php)
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  INPUT: Post Content + Analysis Data                                    │
-│                                                                          │
-│  PROCESS:                                                                │
-│  1. Clean Content                                                        │
-│     ├─ Remove MSO tags (Office garbage)                                 │
-│     ├─ Remove inline styles                                             │
-│     ├─ Remove empty spans/divs                                          │
-│     └─ Sanitize with wp_kses_post                                       │
-│                                                                          │
-│  2. Expand Content (if < 850 words)                                     │
-│     ├─ Build expansion prompt                                           │
-│     ├─ Call AI API ◄─── API Client                                     │
-│     └─ Merge expanded content                                           │
-│                                                                          │
-│  3. Enhance Headings                                                     │
-│     ├─ Analyze paragraphs                                               │
-│     ├─ Generate H2-H4 from context                                      │
-│     └─ Insert headings strategically                                    │
-│                                                                          │
-│  4. Insert TOC (if ≥ 2 H2)                                              │
-│     ├─ Extract all H2 headings                                          │
-│     ├─ Generate anchor IDs                                              │
-│     ├─ Build TOC HTML                                                   │
-│     └─ Insert after first paragraph                                     │
-│                                                                          │
-│  5. Insert FAQ (if applicable)                                          │
-│     ├─ Generate FAQ with AI ◄─── API Client                            │
-│     ├─ Build FAQ HTML                                                   │
-│     ├─ Generate Schema JSON-LD                                          │
-│     └─ Append to content                                                │
-│                                                                          │
-│  OUTPUT: Transformed Content                                            │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
+## 🔄 PIPELINE DE 4 FASES
+
+### FASE 1: ANÁLISIS
+- Detección de categoría (michoacan, salud, etc.)
+- Extracción de keywords y entidades.
+- Análisis de estructura y conteo de palabras.
+
+### FASE 2: TRANSFORMACIÓN
+- Limpieza profunda de HTML (Office tags, inline styles).
+- Expansión de contenido (850-1200 palabras).
+- Inserción de TOC (Tabla de Contenidos) y FAQ Schema JSON-LD.
+
+### FASE 3: INYECCIÓN SEO
+- Actualización de campos RankMath.
+- Optimización de slugs y configuración de robots.
+- Garantía de score 100/100.
+
+### FASE 4: LOCALIZACIÓN
+- Generación de versiones multilingües.
+- Almacenamiento en caché persistente.
+- Pre-carga de caché en WP-Rocket.
 
 ════════════════════════════════════════════════════════════════════════════
 
-PHASE 3: SEO INJECTION (class-seo-injector.php)
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  INPUT: Post ID + Post Object + Analysis Data                           │
-│                                                                          │
-│  PROCESS:                                                                │
-│  1. Generate SEO Metadata                                               │
-│     ├─ Focus Keyword (from top keywords)                                │
-│     ├─ Meta Description (155-160 chars)                                 │
-│     ├─ SEO Title (≤60 chars)                                            │
-│     └─ Additional Keywords                                              │
-│                                                                          │
-│  2. Inject RankMath Meta                                                │
-│     ├─ rank_math_focus_keyword                                          │
-│     ├─ rank_math_description                                            │
-│     ├─ rank_math_title                                                  │
-│     └─ rank_math_focus_keywords                                         │
-│                                                                          │
-│  3. Configure Advanced RankMath                                         │
-│     ├─ Robots meta (index, follow, etc.)                                │
-│     ├─ Rich Snippets (Article/NewsArticle)                              │
-│     ├─ Open Graph settings                                              │
-│     ├─ Twitter Card settings                                            │
-│     ├─ Canonical URL                                                    │
-│     └─ Pillar Content (if ≥1500 words)                                  │
-│                                                                          │
-│  4. Optimize Slug                                                        │
-│     ├─ Generate from title                                              │
-│     ├─ Limit to 50 chars                                                │
-│     └─ Ensure uniqueness                                                │
-│                                                                          │
-│  OUTPUT: SEO Score 100/100                                              │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-
-════════════════════════════════════════════════════════════════════════════
-
-PHASE 4: LOCALIZATION (class-translation-manager.php)
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  INPUT: Post ID + Post Object + Analysis Data                           │
-│                                                                          │
-│  PROCESS:                                                                │
-│  1. Get Active Languages                                                │
-│     └─ Query kzmcito_languages table                                    │
-│                                                                          │
-│  2. For Each Language:                                                  │
-│     ├─ Check cache first                                                │
-│     ├─ If not cached:                                                   │
-│     │  ├─ Translate content ◄─── API Client                            │
-│     │  ├─ Translate title ◄─── API Client                              │
-│     │  └─ Translate meta description ◄─── API Client                   │
-│     └─ Store translation data                                           │
-│                                                                          │
-│  3. Save to Cache                                                        │
-│     ├─ kzmcito_translations_cache (all translations)                    │
-│     ├─ _kzmcito_available_languages (language codes)                    │
-│     └─ _kzmcito_last_translated (timestamp)                             │
-│                                                                          │
-│  OUTPUT: Multilingual Content Cache                                     │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-
-════════════════════════════════════════════════════════════════════════════
-
-SUPPORTING COMPONENTS
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  PROMPT MANAGER (class-prompt-manager.php)                              │
-│  ├─ Load Global Prompt (system-prompt-global.md)                        │
-│  ├─ Load Category Prompt (01-michoacan.md, etc.)                        │
-│  ├─ Merge Prompts (hierarchical)                                        │
-│  ├─ Replace Variables ({{site_name}}, etc.)                             │
-│  ├─ Backup System (automatic on save)                                   │
-│  └─ Fallback Mode (if category not found)                               │
-│                                                                          │
-│  API CLIENT (class-api-client.php)                                      │
-│  ├─ Claude Integration (Anthropic)                                      │
-│  ├─ Gemini Integration (Google)                                         │
-│  ├─ GPT Integration (OpenAI)                                            │
-│  ├─ Error Handling                                                      │
-│  └─ Connection Testing                                                  │
-│                                                                          │
-│  META FIELDS (class-meta-fields.php)                                    │
-│  ├─ Processing Fields (_kzmcito_last_processed, etc.)                   │
-│  ├─ Analysis Fields (_kzmcito_keywords, etc.)                           │
-│  ├─ SEO Fields (_kzmcito_seo_score, etc.)                               │
-│  ├─ Translation Fields (kzmcito_translations_cache, etc.)               │
-│  └─ REST API Support                                                    │
-│                                                                          │
-│  ADMIN UI (class-admin-ui.php)                                          │
-│  ├─ Settings Page (API keys, configuration)                             │
-│  ├─ Prompt Editor (visual editor with sidebar)                          │
-│  ├─ Language Manager (CRUD operations)                                  │
-│  └─ Statistics Dashboard (processed posts, translations)                │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-
-════════════════════════════════════════════════════════════════════════════
-
-DATA FLOW
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  User Saves Post                                                         │
-│         │                                                                │
-│         ▼                                                                │
-│  wp_insert_post_data (hook)                                             │
-│         │                                                                │
-│         ▼                                                                │
-│  Core::process_content()                                                │
-│         │                                                                │
-│         ├─▶ Phase 1: Analysis                                           │
-│         │   └─▶ Analysis Data                                           │
-│         │                                                                │
-│         ├─▶ Phase 2: Transformation                                     │
-│         │   └─▶ Transformed Content                                     │
-│         │                                                                │
-│         └─▶ Mark for Phase 3 & 4                                        │
-│                                                                          │
-│  Post Saved to Database                                                 │
-│         │                                                                │
-│         ▼                                                                │
-│  save_post (hook)                                                       │
-│         │                                                                │
-│         ▼                                                                │
-│  Core::process_translations()                                           │
-│         │                                                                │
-│         ├─▶ Phase 3: SEO Injection                                      │
-│         │   └─▶ RankMath Meta Updated                                   │
-│         │                                                                │
-│         └─▶ Phase 4: Localization                                       │
-│             └─▶ Translations Cached                                     │
-│                                                                          │
-│  Processing Complete ✓                                                  │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-
-════════════════════════════════════════════════════════════════════════════
-
-CATEGORY DETECTION & FALLBACK
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  Post Categories                                                         │
-│         │                                                                │
-│         ▼                                                                │
-│  ┌─────────────────┐                                                    │
-│  │ Has "michoacan" │──YES──▶ Load 01-michoacan.md                       │
-│  └─────────────────┘                                                    │
-│         │ NO                                                             │
-│         ▼                                                                │
-│  ┌─────────────────┐                                                    │
-│  │ Has "educacion" │──YES──▶ Load 02-educacion.md                       │
-│  └─────────────────┘                                                    │
-│         │ NO                                                             │
-│         ▼                                                                │
-│  ┌─────────────────┐                                                    │
-│  │ Has "entreteni" │──YES──▶ Load 03-entretenimiento.md                 │
-│  └─────────────────┘                                                    │
-│         │ NO                                                             │
-│         ▼                                                                │
-│  ┌─────────────────┐                                                    │
-│  │ Has "justicia"  │──YES──▶ Load 04-justicia.md                        │
-│  └─────────────────┘                                                    │
-│         │ NO                                                             │
-│         ▼                                                                │
-│  ┌─────────────────┐                                                    │
-│  │ Has "salud"     │──YES──▶ Load 05-salud.md                           │
-│  └─────────────────┘                                                    │
-│         │ NO                                                             │
-│         ▼                                                                │
-│  ┌─────────────────┐                                                    │
-│  │ Has "seguridad" │──YES──▶ Load 06-seguridad.md                       │
-│  └─────────────────┘                                                    │
-│         │ NO                                                             │
-│         ▼                                                                │
-│  ┌─────────────────────────────────────┐                                │
-│  │ FALLBACK MODE                       │                                │
-│  │ Use only system-prompt-global.md    │                                │
-│  │ Log event for analysis              │                                │
-│  └─────────────────────────────────────┘                                │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-
-════════════════════════════════════════════════════════════════════════════
-
-SECURITY LAYERS
-┌────────────────────────────────────────────────────────────────────────┐
-│                                                                          │
-│  1. INPUT SANITIZATION                                                  │
-│     ├─ wp_kses_post() for HTML content                                  │
-│     ├─ sanitize_text_field() for text                                   │
-│     ├─ absint() for integers                                            │
-│     └─ esc_url() for URLs                                               │
-│                                                                          │
-│  2. OUTPUT ESCAPING                                                     │
-│     ├─ esc_html() for HTML output                                       │
-│     ├─ esc_attr() for attributes                                        │
-│     └─ wp_json_encode() for JSON                                        │
-│                                                                          │
-│  3. PERMISSION CHECKS                                                   │
-│     ├─ current_user_can('edit_posts')                                   │
-│     ├─ current_user_can('manage_options')                               │
-│     └─ check_admin_referer() for nonces                                 │
-│                                                                          │
-│  4. NONCE VERIFICATION                                                  │
-│     ├─ wp_nonce_field() in forms                                        │
-│     ├─ check_ajax_referer() in AJAX                                     │
-│     └─ wp_verify_nonce() for validation                                 │
-│                                                                          │
-│  5. DATABASE SECURITY                                                   │
-│     ├─ $wpdb->prepare() for queries                                     │
-│     ├─ Parameterized queries                                            │
-│     └─ Type casting (%s, %d, etc.)                                      │
-│                                                                          │
-└────────────────────────────────────────────────────────────────────────┘
-
-════════════════════════════════════════════════════════════════════════════
+## 🛡️ CAPAS DE SEGURIDAD
+1. **Sanitización Estricta**: `wp_kses_post()` para contenido y `sanitize_text_field()` para metadatos.
+2. **Validación de Permisos**: Chequeos de `current_user_can('edit_posts')` en todas las acciones.
+3. **Protección Nonce**: Verificación de nonces en todos los formularios y llamadas AJAX.
+4. **Consultas Preparadas**: Uso de `$wpdb->prepare()` para toda interacción con la base de datos.

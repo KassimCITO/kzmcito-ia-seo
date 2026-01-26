@@ -70,6 +70,11 @@ class Kzmcito_IA_SEO
     private $core;
 
     /**
+     * Instancia del Detector de Idioma
+     */
+    private $detector;
+
+    /**
      * Obtener instancia única del plugin
      */
     public static function get_instance()
@@ -151,6 +156,7 @@ class Kzmcito_IA_SEO
     private function init_core()
     {
         $this->core = new Kzmcito_IA_SEO_Core();
+        $this->detector = new Kzmcito_IA_SEO_Language_Detector();
     }
 
     /**
@@ -447,12 +453,35 @@ class Kzmcito_IA_SEO
     }
 
     /**
-     * Filtrar contenido en el frontend
+     * Filtrar contenido en el frontend para mostrar traducciones automáticas
      */
     public function filter_frontend_content($content)
     {
-        // Aquí se puede agregar lógica adicional para el frontend
-        return $content;
+        // Solo en singles de posts o páginas
+        if (!is_singular() || !in_the_loop() || !is_main_query()) {
+            return $content;
+        }
+
+        $post_id = get_the_ID();
+        $lang = $this->detector->detect_user_language();
+
+        // Si es español o no hay traducciones, devolver original
+        return $this->detector->get_translated_content($content, $post_id, $lang);
+    }
+
+    /**
+     * Filtrar título en el frontend para mostrar traducciones automáticas
+     */
+    public function filter_frontend_title($title, $id = null)
+    {
+        // Solo en singles y si el ID coincide
+        if (!is_singular() || !in_the_loop() || !is_main_query() || $id !== get_the_ID()) {
+            return $title;
+        }
+
+        $lang = $this->detector->detect_user_language();
+
+        return $this->detector->get_translated_title($title, $id, $lang);
     }
 
     /**
