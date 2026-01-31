@@ -113,7 +113,7 @@ class Kzmcito_IA_SEO_Core
     private function phase_1_analysis($data, $postarr)
     {
         $content = $data['post_content'];
-        $title = $data['post_title'];
+        $title = str_replace(['«', '»'], '"', $data['post_title']);
 
         // Detectar categoría del post
         $category = $this->detect_category($postarr);

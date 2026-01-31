@@ -230,8 +230,8 @@ class Kzmcito_IA_SEO_Language_Detector
             return;
         }
 
-        // Cookie por 30 días
-        $expire = time() + (30 * DAY_IN_SECONDS);
+        // Cookie por 365 días
+        $expire = time() + (365 * DAY_IN_SECONDS);
 
         setcookie(
             $this->cookie_name,
@@ -318,11 +318,194 @@ class Kzmcito_IA_SEO_Language_Detector
         // JavaScript para cambiar idioma
         $html .= '<script>
         function kzmcitoChangeLang(lang) {
-            document.cookie = "' . $this->cookie_name . '=" + lang + "; path=/; max-age=' . (30 * DAY_IN_SECONDS) . '";
+            document.cookie = "' . $this->cookie_name . '=" + lang + "; path=/; max-age=' . (365 * DAY_IN_SECONDS) . '";
             location.reload();
-        }
         </script>';
 
         return $html;
+    }
+
+    /**
+     * Renderizar cuadro flotante de cambio de idioma
+     * 
+     * @param int|null $post_id Post ID
+     */
+    public function render_language_floating_box($post_id = null)
+    {
+        if (!$post_id) {
+            $post_id = get_the_ID();
+        }
+
+        if (!$post_id || !is_singular()) {
+            return;
+        }
+
+        if ($this->is_search_bot()) {
+            return;
+        }
+
+        $current_lang = $this->detect_user_language();
+        $browser_lang = $this->detect_browser_language();
+        $available_languages = $this->get_available_languages_for_post($post_id);
+
+        $show_box = false;
+        $box_text = '';
+        $target_lang = '';
+
+        if ($current_lang !== $this->default_language) {
+            // Caso: Estamos viendo una traducción, ofrecer volver al original
+            $show_box = true;
+            $box_text = $this->get_ui_text('read_original', $current_lang);
+            $target_lang = $this->default_language;
+        } else {
+            // Caso: Estamos en español, ver si el idioma del navegador tiene traducción disponible
+            if ($browser_lang && $browser_lang !== $this->default_language && in_array($browser_lang, $available_languages)) {
+                $show_box = true;
+                $box_text = $this->get_ui_text('read_in', $browser_lang);
+                $target_lang = $browser_lang;
+            }
+        }
+
+        if (!$show_box) {
+            return;
+        }
+
+        // Renderizar el cuadro flotante
+        ?>
+        <div id="kzmcito-lang-box" class="kzmcito-premium-box">
+            <div class="kzmcito-lang-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <span class="kzmcito-lang-text"><?php echo esc_html($box_text); ?></span>
+        </div>
+
+        <style>
+            #kzmcito-lang-box {
+                position: fixed;
+                bottom: 30px;
+                left: 30px;
+                z-index: 999999;
+                padding: 10px 20px;
+                background: rgba(255, 255, 255, 0.7);
+                backdrop-filter: blur(15px);
+                -webkit-backdrop-filter: blur(15px);
+                border: 1px solid rgba(255, 255, 255, 0.4);
+                border-radius: 16px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+                cursor: pointer;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                color: #1d1d1f;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+                user-select: none;
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            #kzmcito-lang-box:hover {
+                transform: translateY(-5px);
+                background: rgba(255, 255, 255, 0.9);
+                box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+                border-color: rgba(255, 255, 255, 0.6);
+            }
+
+            #kzmcito-lang-box.hidden {
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(40px);
+            }
+
+            .kzmcito-lang-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #0071e3;
+            }
+
+            .kzmcito-lang-icon svg {
+                transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+
+            #kzmcito-lang-box:hover .kzmcito-lang-icon svg {
+                transform: rotate(15deg) scale(1.1);
+            }
+
+            @media (max-width: 768px) {
+                #kzmcito-lang-box {
+                    bottom: 20px;
+                    left: 20px;
+                    right: 20px;
+                    justify-content: center;
+                }
+            }
+        </style>
+
+        <script>
+            (function() {
+                const box = document.getElementById('kzmcito-lang-box');
+                const targetLang = '<?php echo esc_js($target_lang); ?>';
+                const cookieName = '<?php echo esc_js($this->cookie_name); ?>';
+                const expiry = 365 * 24 * 60 * 60; // 365 days in seconds
+
+                if (!box) return;
+
+                box.addEventListener('click', function() {
+                    document.cookie = cookieName + "=" + targetLang + "; path=/; max-age=" + expiry + "; SameSite=Lax" + (window.location.protocol === 'https:' ? '; Secure' : '');
+                    box.style.opacity = '0.5';
+                    box.style.pointerEvents = 'none';
+                    location.reload();
+                });
+
+                window.addEventListener('scroll', function() {
+                    if (window.scrollY > 100) {
+                        box.classList.add('hidden');
+                    } else {
+                        box.classList.remove('hidden');
+                    }
+                }, { passive: true });
+            })();
+        </script>
+        <?php
+    }
+
+    /**
+     * Obtener texto de la interfaz según el idioma
+     */
+    private function get_ui_text($key, $lang)
+    {
+        $texts = [
+            'read_in' => [
+                'en' => 'Read in English',
+                'pt' => 'Ler em Português',
+                'fr' => 'Lire en Français',
+                'de' => 'Auf Deutsch lesen',
+                'ru' => 'Читать на русском',
+                'hi' => 'हिंदी में पढ़ें',
+                'zh' => '用简体中文阅读',
+                'es' => 'Leer en Español'
+            ],
+            'read_original' => [
+                'en' => 'Read original',
+                'pt' => 'Ler original',
+                'fr' => 'Lire l\'original',
+                'de' => 'Original lesen',
+                'ru' => 'Читать оригинал',
+                'hi' => 'मूल पढ़ें',
+                'zh' => '阅读简体中文原文',
+                'es' => 'Leer original'
+            ]
+        ];
+
+        // Determinar idioma para el texto
+        $ui_lang = $lang;
+        if (!isset($texts[$key][$ui_lang])) {
+            $ui_lang = 'en'; // Fallback a inglés
+        }
+
+        return $texts[$key][$ui_lang];
     }
 }

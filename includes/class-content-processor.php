@@ -53,6 +53,9 @@ class Kzmcito_IA_SEO_Content_Processor
         $content = preg_replace('/\s+/', ' ', $content);
         $content = preg_replace('/>\s+</', '><', $content);
 
+        // Reemplazar comillas latinas/símbolos por comillas tipográficas estándar
+        $content = str_replace(['«', '»'], '"', $content);
+
         // Limpiar con wp_kses_post para seguridad
         $content = wp_kses_post($content);
 

@@ -144,6 +144,7 @@ class Kzmcito_IA_SEO
         // Frontend hooks (Traducción automática)
         add_filter('the_content', [$this, 'filter_frontend_content'], 999);
         add_filter('the_title', [$this, 'filter_frontend_title'], 999, 2);
+        add_action('wp_footer', [$this, 'render_language_floating_box']);
 
         // AJAX hooks
         add_action('wp_ajax_kzmcito_process_post', [$this, 'ajax_process_post']);
@@ -535,6 +536,16 @@ class Kzmcito_IA_SEO
             wp_send_json_success($result);
         } else {
             wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * Renderizar cuadro flotante de cambio de idioma en el footer
+     */
+    public function render_language_floating_box()
+    {
+        if ($this->detector) {
+            $this->detector->render_language_floating_box();
         }
     }
 
