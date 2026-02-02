@@ -85,7 +85,11 @@ class Kzmcito_IA_SEO_Translation_Manager
 
         // Verificar cache
         $cache = get_post_meta($post_id, 'kzmcito_translations_cache', true);
-        if (is_array($cache) && isset($cache[$language])) {
+        if (!is_array($cache)) {
+            $cache = [];
+        }
+
+        if (isset($cache[$language])) {
             return [
                 'success' => true,
                 'message' => __('Traducción obtenida desde caché', 'kzmcito-ia-seo'),
@@ -137,6 +141,20 @@ class Kzmcito_IA_SEO_Translation_Manager
             'meta_description' => $translated_meta_desc,
             'translated_at' => current_time('mysql'),
         ];
+
+        // ACTUALIZAR CACHÉ INDIVIDUAL
+        $cache[$language] = $translation_data;
+        update_post_meta($post_id, 'kzmcito_translations_cache', $cache);
+        
+        // Actualizar lista de idiomas disponibles
+        $available = get_post_meta($post_id, '_kzmcito_available_languages', true);
+        if (!is_array($available)) {
+            $available = [];
+        }
+        if (!in_array($language, $available)) {
+            $available[] = $language;
+            update_post_meta($post_id, '_kzmcito_available_languages', $available);
+        }
 
         return [
             'success' => true,

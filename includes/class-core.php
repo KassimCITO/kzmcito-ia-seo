@@ -83,6 +83,20 @@ class Kzmcito_IA_SEO_Core
             $transformed_data = $this->phase_2_transformation($data, $analysis);
             $this->log_event('phase_2_complete', $post_id, 'Transformación completada');
 
+            // FASE 2.5: OPTIMIZACIÓN DE SLUG (Para Redirecciones RankMath adecuadas)
+            if ($post_id) {
+                $optimized_slug = $this->seo_injector->generate_optimized_slug(
+                    $post_id, 
+                    get_post($post_id), 
+                    $transformed_data['post_title']
+                );
+                
+                if ($optimized_slug) {
+                    $transformed_data['post_name'] = $optimized_slug;
+                    $this->log_event('slug_optimized_filter', $post_id, 'Slug optimizado en el filtro: ' . $optimized_slug);
+                }
+            }
+
             // FASE 3: INYECCIÓN SEO
             // (Se ejecuta en save_post hook para tener acceso al post_id)
 
@@ -212,6 +226,56 @@ class Kzmcito_IA_SEO_Core
     }
 
     /**
+     * Asegurar que el post esté procesado (Fases 1-3)
+     * Usado para Just-In-Time processing
+     * 
+     * @param int $post_id Post ID
+     * @return bool True si está procesado o se procesó exitosamente
+     */
+    public function ensure_post_is_processed($post_id)
+    {
+        $last_processed = get_post_meta($post_id, '_kzmcito_last_processed', true);
+        
+        if ($last_processed) {
+            return true;
+        }
+
+        $post = get_post($post_id);
+        if (!$post) return false;
+
+        $this->log_event('jit_processing_start', $post_id, 'Iniciando procesamiento Just-In-Time');
+
+        // Preparar datos para el pipeline
+        $data = [
+            'post_content' => $post->post_content,
+            'post_title' => $post->post_title,
+            'post_type' => $post->post_type,
+        ];
+
+        $postarr = [
+            'ID' => $post_id,
+            'post_category' => wp_get_post_categories($post_id),
+        ];
+
+        // Ejecutar pipeline Fases 1-2
+        $processed_data = $this->process_content($data, $postarr);
+
+        // Actualizar post content si cambió
+        if ($processed_data['post_content'] !== $post->post_content) {
+            wp_update_post([
+                'ID' => $post_id,
+                'post_content' => $processed_data['post_content'],
+            ]);
+        }
+
+        // Ejecutar Fase 3 (SEO Injection)
+        $analysis = get_post_meta($post_id, '_kzmcito_analysis_data', true);
+        $this->phase_3_seo_injection($post_id, $analysis);
+
+        return true;
+    }
+
+    /**
      * FASE 4: LOCALIZACIÓN
      * Generación de versiones en idiomas activos y guardado en caché
      * 
@@ -223,23 +287,24 @@ class Kzmcito_IA_SEO_Core
         // Obtener datos de análisis
         $analysis = get_post_meta($post_id, '_kzmcito_analysis_data', true);
 
-        // Ejecutar Fase 3 si está pendiente
+        // EJECUTAR FASE 3 (SEO INJECTION) - Esto es rápido y necesario en el guardado
         if (get_post_meta($post_id, '_kzmcito_pending_seo_injection', true)) {
             $this->phase_3_seo_injection($post_id, $analysis);
         }
 
-        // Generar traducciones
-        $this->translation_manager->generate_translations($post_id, $post, $analysis);
+        // COMENTADO: Ya no generamos todas las traducciones en el save_post
+        // Las traducciones se generarán Just-In-Time (JIT) en la primera visita real
+        // $this->translation_manager->generate_translations($post_id, $post, $analysis);
 
-        $this->log_event('phase_4_complete', $post_id, 'Localización completada');
-        $this->log_event('pipeline_complete', $post_id, 'Pipeline de 4 fases completado exitosamente');
+        $this->log_event('save_process_complete', $post_id, 'Proceso de guardado completado. Traducciones pendientes para JIT.');
 
-        // LIMPIAR CACHÉ Y PRE-CARGAR
+        // LIMPIAR CACHÉ
         $this->cache_manager->clear_post_cache($post_id);
-        $this->cache_manager->preload_post_cache($post_id);
+        
+        // Purgar Cloudflare
         $this->cache_manager->purge_cloudflare($post_id);
 
-        $this->log_event('cache_cleared', $post_id, 'Caché limpiado y pre-cargado');
+        $this->log_event('cache_cleared', $post_id, 'Caché limpiado. JIT listo para activarse.');
     }
 
     /**

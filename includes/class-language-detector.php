@@ -185,8 +185,16 @@ class Kzmcito_IA_SEO_Language_Detector
         // Obtener traducciones desde caché
         $translations = get_post_meta($post_id, 'kzmcito_translations_cache', true);
 
+        // SI NO EXISTE CACHÉ, GENERAR JIT (Just-In-Time)
         if (!is_array($translations) || !isset($translations[$lang])) {
-            return $content;
+            $this->trigger_jit_process($post_id, $lang);
+            
+            // Volver a obtener de caché después del proceso JIT
+            $translations = get_post_meta($post_id, 'kzmcito_translations_cache', true);
+            
+            if (!is_array($translations) || !isset($translations[$lang])) {
+                return $content; // Fallback final si falló JIT
+            }
         }
 
         // Retornar contenido traducido
@@ -211,12 +219,43 @@ class Kzmcito_IA_SEO_Language_Detector
         // Obtener traducciones desde caché
         $translations = get_post_meta($post_id, 'kzmcito_translations_cache', true);
 
+        // SI NO EXISTE CACHÉ, GENERAR JIT (Just-In-Time)
         if (!is_array($translations) || !isset($translations[$lang])) {
-            return $title;
+            $this->trigger_jit_process($post_id, $lang);
+            
+            // Volver a obtener de caché
+            $translations = get_post_meta($post_id, 'kzmcito_translations_cache', true);
+            
+            if (!is_array($translations) || !isset($translations[$lang])) {
+                return $title;
+            }
         }
 
         // Retornar título traducido
         return $translations[$lang]['title'];
+    }
+
+    /**
+     * Disparar el proceso de generación Just-In-Time
+     * 
+     * @param int $post_id Post ID
+     * @param string $lang Target language
+     */
+    private function trigger_jit_process($post_id, $lang)
+    {
+        // Solo disparar si el idioma es válido
+        if (!$this->is_valid_language($lang)) {
+            return;
+        }
+
+        // 1. Asegurar que el post original esté procesado (Fases 1-3)
+        $core = kzmcito_ia_seo()->get_core();
+        $processed = $core->ensure_post_is_processed($post_id);
+
+        if ($processed) {
+            // 2. Generar traducción para este idioma específico
+            $this->translation_manager->translate_post($post_id, $lang);
+        }
     }
 
     /**

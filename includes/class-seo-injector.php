@@ -243,18 +243,53 @@ class Kzmcito_IA_SEO_SEO_Injector
      */
     public function optimize_slug($post_id, $post)
     {
-        $current_slug = $post->post_name;
-
-        // Si el slug ya está optimizado, no modificar
-        if (strlen($current_slug) > 10 && strlen($current_slug) < 60) {
+        $unique_slug = $this->generate_optimized_slug($post_id, $post);
+        
+        if (!$unique_slug) {
             return;
         }
 
-        // Generar slug optimizado desde el título
-        $title = $post->post_title;
+        // Actualizar slug vía wp_update_post (para llamadas manuales o Phase 3 legacy)
+        if ($unique_slug !== $post->post_name) {
+            wp_update_post([
+                'ID' => $post_id,
+                'post_name' => $unique_slug
+            ]);
+
+            error_log(sprintf(
+                '[Kzmcito IA SEO] Slug optimizado (wp_update_post) para post %d: %s -> %s',
+                $post_id,
+                $post->post_name,
+                $unique_slug
+            ));
+        }
+    }
+
+    /**
+     * Generar slug optimizado
+     * 
+     * @param int $post_id Post ID
+     * @param WP_Post|array $post Post object or data array
+     * @param string $new_title Optional new title
+     * @return string|false Optimized slug or false if no change needed
+     */
+    public function generate_optimized_slug($post_id, $post, $new_title = '')
+    {
+        $post_obj = is_object($post) ? $post : (object) $post;
+        $current_slug = isset($post_obj->post_name) ? $post_obj->post_name : '';
+        $title = !empty($new_title) ? $new_title : $post_obj->post_title;
+
+        // Si el slug ya parece optimizado (longitud razonable) y no es un post nuevo, 
+        // podríamos omitir, pero si el título cambió significativamente, mejor optimizar.
+        // Por ahora, seguimos la lógica original:
+        if (strlen($current_slug) > 20 && strlen($current_slug) < 60 && empty($new_title)) {
+            return false;
+        }
+
+        // Generar slug optimizado
         $optimized_slug = sanitize_title($title);
 
-        // Limitar a 50 caracteres
+        // Limitar a 50 caracteres (best practice SEO)
         if (strlen($optimized_slug) > 50) {
             $words = explode('-', $optimized_slug);
             $optimized_slug = '';
@@ -271,25 +306,12 @@ class Kzmcito_IA_SEO_SEO_Injector
         $unique_slug = wp_unique_post_slug(
             $optimized_slug,
             $post_id,
-            $post->post_status,
-            $post->post_type,
-            $post->post_parent
+            isset($post_obj->post_status) ? $post_obj->post_status : 'publish',
+            isset($post_obj->post_type) ? $post_obj->post_type : 'post',
+            isset($post_obj->post_parent) ? $post_obj->post_parent : 0
         );
 
-        // Actualizar slug
-        if ($unique_slug !== $current_slug) {
-            wp_update_post([
-                'ID' => $post_id,
-                'post_name' => $unique_slug
-            ]);
-
-            error_log(sprintf(
-                '[Kzmcito IA SEO] Slug optimizado para post %d: %s -> %s',
-                $post_id,
-                $current_slug,
-                $unique_slug
-            ));
-        }
+        return ($unique_slug !== $current_slug) ? $unique_slug : false;
     }
 
     /**
