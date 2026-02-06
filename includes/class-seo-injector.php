@@ -46,23 +46,27 @@ class Kzmcito_IA_SEO_SEO_Injector
         // Generar metadatos SEO optimizados
         $seo_data = $this->generate_seo_metadata($post, $analysis);
 
-        // Inyectar Focus Keyword
-        if (!empty($seo_data['focus_keyword'])) {
+        // Inyectar Focus Keyword (sólo si está vacío)
+        $current_focus = get_post_meta($post_id, 'rank_math_focus_keyword', true);
+        if (empty($current_focus) && !empty($seo_data['focus_keyword'])) {
             update_post_meta($post_id, 'rank_math_focus_keyword', sanitize_text_field($seo_data['focus_keyword']));
         }
 
-        // Inyectar Meta Description
-        if (!empty($seo_data['meta_description'])) {
+        // Inyectar Meta Description (sólo si está vacío)
+        $current_desc = get_post_meta($post_id, 'rank_math_description', true);
+        if (empty($current_desc) && !empty($seo_data['meta_description'])) {
             update_post_meta($post_id, 'rank_math_description', sanitize_text_field($seo_data['meta_description']));
         }
 
-        // Inyectar SEO Title
-        if (!empty($seo_data['seo_title'])) {
+        // Inyectar SEO Title (sólo si está vacío o para mejora A/B)
+        $current_title = get_post_meta($post_id, 'rank_math_title', true);
+        if (empty($current_title) && !empty($seo_data['seo_title'])) {
             update_post_meta($post_id, 'rank_math_title', sanitize_text_field($seo_data['seo_title']));
         }
 
-        // Inyectar keywords adicionales
-        if (!empty($seo_data['additional_keywords'])) {
+        // Inyectar keywords adicionales (sólo si está vacío)
+        $current_additional = get_post_meta($post_id, 'rank_math_focus_keywords', true);
+        if (empty($current_additional) && !empty($seo_data['additional_keywords'])) {
             update_post_meta($post_id, 'rank_math_focus_keywords', $seo_data['additional_keywords']);
         }
 

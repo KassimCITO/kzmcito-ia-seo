@@ -15,10 +15,14 @@ El **Engine Editorial IA** es una solución integral para WordPress diseñada pa
 * **Soporte Multimodelo**: Compatible con Claude 3.5 (Sonnet/Opus), Google Gemini Pro y OpenAI GPT-4.
 * **Procesamiento Jerárquico**: Combina prompts globales con instrucciones específicas por categoría (Educación, Salud, Justicia, etc.).
 * **Pipeline de 4 Fases**: Análisis, Transformación, Inyección SEO y Localización.
+* **Optimización de Títulos**: Sustitución automática de comillas latinas (« ») por comillas tipográficas estándar para SEO.
+* **Enriquecimiento Inteligente**: Expansión de acrónimos con nomenclatura completa y enlaces a fuentes oficiales (ej. CFE, IMSS).
+* **Infografías Sugeridas**: Capacidad de generar estructuras de datos para infografías ad-hoc que facilitan la comprensión del post.
 
 ### 🌍 Localización y Traducción
 
 * **Traducción JIT (Just-In-Time)**: Genera traducciones automáticamente al ser solicitadas por el usuario.
+* **Rangos Contemplados**: Ajuste inteligente de longitud de contenido entre **650 y 950 palabras**.
 * **Detección de Navegador**: Detecta el idioma preferido del visitante y ofrece la traducción si está disponible.
 * **Cuadro Flotante Premium**: Interfaz moderna con opción de descarte para mejorar la experiencia de usuario.
 

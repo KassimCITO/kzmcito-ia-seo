@@ -128,6 +128,7 @@ class Kzmcito_IA_SEO_Core
     {
         $content = $data['post_content'];
         $title = str_replace(['«', '»'], '"', $data['post_title']);
+        $data['post_title'] = $title; // Sanitizar también en el objeto de datos original
 
         // Detectar categoría del post
         $category = $this->detect_category($postarr);
@@ -143,7 +144,7 @@ class Kzmcito_IA_SEO_Core
             'has_headings' => $this->count_headings($content),
             'keywords' => $this->extract_keywords($content, $title),
             'entities' => $this->extract_entities($content),
-            'needs_expansion' => str_word_count(strip_tags($content)) < get_option('kzmcito_min_words', 850),
+            'needs_expansion' => str_word_count(strip_tags($content)) < get_option('kzmcito_min_words', 650),
             'needs_toc' => $this->count_headings($content)['h2'] >= 2,
             'needs_faq' => $this->should_add_faq($content, $category),
         ];
