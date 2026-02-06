@@ -59,7 +59,42 @@ class Kzmcito_IA_SEO_Content_Processor
         // Limpiar con wp_kses_post para seguridad
         $content = wp_kses_post($content);
 
+        // Linkificar teléfonos y correos
+        $content = $this->linkify_contacts($content);
+
         return trim($content);
+    }
+
+    /**
+     * Convertir teléfonos y correos en texto plano a enlaces HTML
+     * 
+     * @param string $content Content
+     * @return string Linkified content
+     */
+    public function linkify_contacts($content)
+    {
+        // 1. Linkificar Correos Electrónicos
+        // Regex para detectar emails que NO estén ya dentro de un atributo href o un tag <a>
+        $content = preg_replace_callback(
+            '/(?<!href=["\'])(?<!>)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i',
+            function($matches) {
+                return '<a href="mailto:' . esc_attr($matches[0]) . '">' . esc_html($matches[0]) . '</a>';
+            },
+            $content
+        );
+
+        // 2. Linkificar Teléfonos (Formato común: +XX XXX XXX XXXX o 10 dígitos)
+        // Buscamos patrones numéricos de 10 dígitos o con código de país
+        $content = preg_replace_callback(
+            '/(?<!href=["\'])(?<!>)\b(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/',
+            function($matches) {
+                $clean_tel = preg_replace('/\D/', '', $matches[0]);
+                return '<a href="tel:' . esc_attr($clean_tel) . '">' . esc_html($matches[0]) . '</a>';
+            },
+            $content
+        );
+
+        return $content;
     }
 
     /**

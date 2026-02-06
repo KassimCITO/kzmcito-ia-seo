@@ -17,6 +17,7 @@ El **Engine Editorial IA** es una solución integral para WordPress diseñada pa
 * **Pipeline de 4 Fases**: Análisis, Transformación, Inyección SEO y Localización.
 * **Optimización de Títulos**: Sustitución automática de comillas latinas (« ») por comillas tipográficas estándar para SEO.
 * **Enriquecimiento Inteligente**: Expansión de acrónimos con nomenclatura completa y enlaces a fuentes oficiales (ej. CFE, IMSS).
+* **Linkificación de Contactos**: Conversión automática de números de teléfono y correos electrónicos en texto plano a enlaces funcionales (`tel:` y `mailto:`) para mejorar la experiencia táctil y de escritorio.
 * **Infografías Sugeridas**: Capacidad de generar estructuras de datos para infografías ad-hoc que facilitan la comprensión del post.
 
 ### 🌍 Localización y Traducción

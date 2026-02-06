@@ -51,6 +51,7 @@ Este sistema no genera artículos desde cero: trabaja siempre sobre contenido or
 2. **Expansión de Acrónimos**: Al encontrar acrónimos (ej: CFE, IMSS, ONU), colocar la nomenclatura completa seguida de la URL oficial entre paréntesis en la primera mención.
    - Ejemplo: CFE (Comisión Federal de Electricidad - <https://www.cfe.gob.mx/>).
 3. **Infografías (Instrucción IA)**: Si el contexto del post lo amerita (datos complejos, procesos, comparativas), describe una estructura o texto para una **infografía ad-hoc** que ayude al lector a entender el contexto.
+4. **Linkificación de Contactos**: Identificar números de teléfono y convertirlos a enlaces funcionales `<a href="tel:...">...</a>`. Así mismo, identificar correos electrónicos sin formato y convertirlos a enlaces `<a href="mailto:...">...</a>` para mejorar la UX.
 
 ---
 
