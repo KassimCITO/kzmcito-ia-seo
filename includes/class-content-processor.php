@@ -62,7 +62,43 @@ class Kzmcito_IA_SEO_Content_Processor
         // Linkificar teléfonos y correos
         $content = $this->linkify_contacts($content);
 
+        // Renderizar mapas de Google si existen marcadores
+        $content = $this->render_google_maps($content);
+
         return trim($content);
+    }
+
+    /**
+     * Renderizar mapas de Google a partir de marcadores [kzmcito_google_map location="..."]
+     * 
+     * @param string $content Content
+     * @return string Content with maps
+     */
+    public function render_google_maps($content)
+    {
+        $api_key = get_option('kzmcito_google_maps_api_key', '');
+        
+        if (empty($api_key)) {
+            // Si no hay API Key, eliminar los marcadores para no ensuciar el post
+            return preg_replace('/\[kzmcito_google_map location=".*?"\]/', '', $content);
+        }
+
+        return preg_replace_callback(
+            '/\[kzmcito_google_map location="(.*?)"\]/',
+            function($matches) use ($api_key) {
+                $location = urlencode($matches[1]);
+                $map_html = '<div class="kzmcito-google-map-container" style="margin: 25px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">';
+                $map_html .= sprintf(
+                    '<iframe width="100%%" height="400" frameborder="0" style="border:0" 
+                    src="https://www.google.com/maps/embed/v1/place?key=%s&q=%s" allowfullscreen></iframe>',
+                    esc_attr($api_key),
+                    $location
+                );
+                $map_html .= '</div>';
+                return $map_html;
+            },
+            $content
+        );
     }
 
     /**

@@ -182,6 +182,24 @@ class Kzmcito_IA_SEO_Admin_UI
 
                     <tr>
                         <th scope="row">
+                            <label for="kzmcito_google_maps_api_key">
+                                <?php _e('API Key - Google Maps', 'kzmcito-ia-seo'); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input type="password" name="kzmcito_google_maps_api_key" id="kzmcito_google_maps_api_key"
+                                value="<?php echo esc_attr(get_option('kzmcito_google_maps_api_key')); ?>" class="regular-text">
+                            <p class="description">
+                                <?php _e('API Key para insertar mapas de Google dinámicos.', 'kzmcito-ia-seo'); ?><br>
+                                <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener">
+                                    <?php _e('→ Obtener API Key de Google Maps', 'kzmcito-ia-seo'); ?>
+                                </a>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
                             <label for="kzmcito_auto_process">
                                 <?php _e('Procesamiento Automático', 'kzmcito-ia-seo'); ?>
                             </label>
@@ -621,6 +639,7 @@ class Kzmcito_IA_SEO_Admin_UI
             'kzmcito_max_words',
             'kzmcito_enable_toc',
             'kzmcito_enable_faq',
+            'kzmcito_google_maps_api_key',
             'kzmcito_ga4_measurement_id',
         ];
 

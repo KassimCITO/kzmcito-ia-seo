@@ -85,6 +85,14 @@ Este sistema no genera artículos desde cero: trabaja siempre sobre contenido or
 - {{palabra_clave_objetivo}}
 - {{idioma_destino}}
 - {{contenido_original}}
+- {{ubicacion_principal}} (Municipio o ciudad detectada al inicio del post para inserción de mapa)
+
+---
+
+## TAREA ADICIONAL: IDENTIFICACIÓN GEOGRÁFICA
+1. Al analizar el contenido, identifica la **Ubicación Principal** (ejemplo: Apatzingán, Michoacán). 
+2. Si no hay una dirección específica, usa el nombre del municipio o ciudad.
+3. Si el post lo amerita, coloca al final del contenido un marcador de posición para el mapa: `[kzmcito_google_map location="UBICACIÓN_DETECTADA"]`.
 
 ---
 
