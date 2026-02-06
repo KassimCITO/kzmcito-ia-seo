@@ -272,6 +272,22 @@ class Kzmcito_IA_SEO_Admin_UI
                             </p>
                         </td>
                     </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <label for="kzmcito_ga4_measurement_id">
+                                <?php _e('Google Analytics 4 ID', 'kzmcito-ia-seo'); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input type="text" name="kzmcito_ga4_measurement_id" id="kzmcito_ga4_measurement_id"
+                                value="<?php echo esc_attr(get_option('kzmcito_ga4_measurement_id')); ?>" class="regular-text" placeholder="G-XXXXXXXXXX">
+                            <p class="description">
+                                <?php _e('ID de Medición de GA4 para seguimiento de eventos de traducción (translation_interaction).', 'kzmcito-ia-seo'); ?><br>
+                                <?php _e('Si se deja vacío, se intentará usar el objeto gtag existente en el sitio.', 'kzmcito-ia-seo'); ?>
+                            </p>
+                        </td>
+                    </tr>
                 </table>
 
                 <p class="submit">
@@ -605,6 +621,7 @@ class Kzmcito_IA_SEO_Admin_UI
             'kzmcito_max_words',
             'kzmcito_enable_toc',
             'kzmcito_enable_faq',
+            'kzmcito_ga4_measurement_id',
         ];
 
         foreach ($options as $option) {

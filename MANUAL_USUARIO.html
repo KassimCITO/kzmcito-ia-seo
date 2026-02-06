@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>MANUAL_USUARIO</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+</style>
+</head>
+<body>
+<h1 id="manual-de-usuario-engine-editorial-ia-versión-2.5.0">Manual de
+Usuario: Engine Editorial IA (Versión 2.5.0)</h1>
+<figure>
+<img role="img" aria-label="Proceso IA Engine" src="kzmcito_ai_process_workflow_1770336834631.png" alt="Proceso IA Engine" />
+<figcaption aria-hidden="true">Proceso IA Engine</figcaption>
+</figure>
+<h2 id="introducción">1. Introducción</h2>
+<p>El <strong>Engine Editorial IA</strong> es una solución integral para
+WordPress diseñada para automatizar la transformación de contenidos,
+optimización SEO y localización multilingüe. Utilizando modelos de
+inteligencia artificial de vanguardia, el plugin convierte borradores
+simples en artículos profesionales listos para ser publicados.</p>
+<hr />
+<h2 id="características-principales">2. Características Principales</h2>
+<h3 id="inteligencia-artificial-multifacética">🤖 Inteligencia
+Artificial Multifacética</h3>
+<ul>
+<li><strong>Soporte Multimodelo</strong>: Compatible con Claude 3.5
+(Sonnet/Opus), Google Gemini Pro y OpenAI GPT-4.</li>
+<li><strong>Procesamiento Jerárquico</strong>: Combina prompts globales
+con instrucciones específicas por categoría (Educación, Salud, Justicia,
+etc.).</li>
+<li><strong>Pipeline de 4 Fases</strong>: Análisis, Transformación,
+Inyección SEO y Localización.</li>
+</ul>
+<h3 id="localización-y-traducción">🌍 Localización y Traducción</h3>
+<ul>
+<li><strong>Traducción JIT (Just-In-Time)</strong>: Genera traducciones
+automáticamente al ser solicitadas por el usuario.</li>
+<li><strong>Detección de Navegador</strong>: Detecta el idioma preferido
+del visitante y ofrece la traducción si está disponible.</li>
+<li><strong>Cuadro Flotante Premium</strong>: Interfaz moderna con
+opción de descarte para mejorar la experiencia de usuario.</li>
+</ul>
+<h3 id="seguimiento-y-analítica-ga4">📊 Seguimiento y Analítica
+(GA4)</h3>
+<ul>
+<li><strong>Rastreo de Interacciones</strong>: Registro de eventos
+<code>translation_interaction</code> en Google Analytics 4.</li>
+<li><strong>Dimensiones capturadas</strong>: Idioma del navegador,
+idioma de destino, tipo de interacción y estado de soporte.</li>
+</ul>
+<hr />
+<h2 id="configuración-inicial">3. Configuración Inicial</h2>
+<h3 id="paso-1-configuración-de-api-keys">Paso 1: Configuración de API
+Keys</h3>
+<p>Para que el motor funcione, debe configurar al menos una llave de
+API:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Proveedor</th>
+<th style="text-align: left;">Enlace para generar API Key</th>
+<th style="text-align: left;">Documentación</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Anthropic (Claude)</strong></td>
+<td style="text-align: left;"><a href="https://console.anthropic.com/">Consola Anthropic</a></td>
+<td style="text-align: left;"><a href="https://docs.anthropic.com/">Guía
+Claude</a></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Google (Gemini)</strong></td>
+<td style="text-align: left;"><a href="https://aistudio.google.com/">Google AI Studio</a></td>
+<td style="text-align: left;"><a href="https://ai.google.dev/">Guía
+Gemini</a></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>OpenAI (GPT)</strong></td>
+<td style="text-align: left;"><a href="https://platform.openai.com/api-keys">Dashboard OpenAI</a></td>
+<td style="text-align: left;"><a href="https://platform.openai.com/docs/">Guía OpenAI</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="paso-2-configuración-de-google-analytics-4">Paso 2:
+Configuración de Google Analytics 4</h3>
+<ol type="1">
+<li>Diríjase a <strong>Engine IA &gt; Configuración</strong>.</li>
+<li>Ingrese su <strong>ID de Medición de GA4</strong> (ejemplo:
+<code>G-XXXXXXXXXX</code>).</li>
+<li>Si ya tiene GA4 configurado en su sitio, el plugin lo detectará
+automáticamente.</li>
+</ol>
+<hr />
+<h2 id="guía-de-uso">4. Guía de Uso</h2>
+<h3 id="procesamiento-de-contenido">Procesamiento de Contenido</h3>
+<ol type="1">
+<li><strong>Automático</strong>: Active “Procesar al guardar” en la
+configuración para que cada nuevo post pase por el pipeline.</li>
+<li><strong>Manual</strong>: En la edición de cualquier Post, encontrará
+el panel lateral <strong>Engine Editorial IA</strong> con el botón
+<strong>“Procesar Ahora”</strong>.</li>
+</ol>
+<h3 id="gestión-de-prompts">Gestión de Prompts</h3>
+<p>Usted puede personalizar cómo la IA transforma los contenidos en
+<strong>Engine IA &gt; Prompts</strong>.</p>
+<ul>
+<li><strong>Prompt Global</strong>: Reglas base de estilo y
+seguridad.</li>
+<li><strong>Prompts por Categoría</strong>: Instrucciones específicas
+para temas locales, salud, seguridad, etc.</li>
+</ul>
+<hr />
+<h2 id="especificaciones-técnicas">5. Especificaciones Técnicas</h2>
+<ul>
+<li><strong>Versión de PHP</strong>: 8.0 o superior recomendada.</li>
+<li><strong>Integración SEO</strong>: Compatible nativamente con
+<strong>RankMath SEO</strong>.</li>
+<li><strong>Seguridad</strong>: Implementación estricta de principios
+<code>Antigravity</code> con sanitización de datos en cada fase.</li>
+<li><strong>Campos Meta</strong>: El plugin almacena datos críticos en
+campos meta prefijados con <code>_kzmcito_</code> para no interferir con
+otros plugins.</li>
+</ul>
+<hr />
+<h2 id="recursos-adicionales">6. Recursos Adicionales</h2>
+<ul>
+<li><strong>Repositorio Oficial</strong>: <a href="https://github.com/KassimCITO/kzmcito-ia-seo">GitHub -
+KassimCITO/kzmcito-ia-seo</a></li>
+<li><strong>Soporte Técnico</strong>: Contactar a través de la consola
+de administración del plugin.</li>
+</ul>
+<hr />
+<p><em>Este manual fue generado automáticamente y está sujeto a
+actualizaciones según el desarrollo del software.</em></p>
+</body>
+</html>

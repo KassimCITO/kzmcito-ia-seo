@@ -109,23 +109,19 @@ class Kzmcito_IA_SEO_Language_Detector
      * 
      * @return string|false Language code or false
      */
-    private function detect_browser_language()
+    public function get_browser_preferred_languages()
     {
         if (!isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-            return false;
+            return [];
         }
 
         $accept_language = $_SERVER['HTTP_ACCEPT_LANGUAGE'];
-
-        // Parsear Accept-Language header
-        // Ejemplo: "en-US,en;q=0.9,es;q=0.8,pt;q=0.7"
         preg_match_all('/([a-z]{2})(?:-[A-Z]{2})?(?:;q=([0-9.]+))?/', $accept_language, $matches);
 
         if (empty($matches[1])) {
-            return false;
+            return [];
         }
 
-        // Obtener idiomas con sus prioridades
         $languages = [];
         foreach ($matches[1] as $index => $lang) {
             $priority = isset($matches[2][$index]) && $matches[2][$index] !== ''
@@ -134,11 +130,20 @@ class Kzmcito_IA_SEO_Language_Detector
             $languages[$lang] = $priority;
         }
 
-        // Ordenar por prioridad (mayor a menor)
         arsort($languages);
+        return array_keys($languages);
+    }
 
-        // Retornar el idioma con mayor prioridad que esté disponible
-        foreach ($languages as $lang => $priority) {
+    /**
+     * Detectar idioma del navegador (solo si es válido/soportado)
+     * 
+     * @return string|false Language code or false
+     */
+    private function detect_browser_language()
+    {
+        $preferred = $this->get_browser_preferred_languages();
+
+        foreach ($preferred as $lang) {
             if ($this->is_valid_language($lang)) {
                 return $lang;
             }
@@ -357,8 +362,16 @@ class Kzmcito_IA_SEO_Language_Detector
         // JavaScript para cambiar idioma
         $html .= '<script>
         function kzmcitoChangeLang(lang) {
-            document.cookie = "' . $this->cookie_name . '=" + lang + "; path=/; max-age=' . (365 * DAY_IN_SECONDS) . '";
-            location.reload();
+            if (window.kzmcitoTrackEvent) {
+                window.kzmcitoTrackEvent("translation_interaction", {
+                    "language": lang,
+                    "interaction_type": "manual_select",
+                    "previous_language": "' . esc_js($current_lang) . '"
+                });
+            }
+            document.cookie = "' . $this->cookie_name . '=" + lang + "; path=/; max-age=' . (365 * DAY_IN_SECONDS) . '; SameSite=Lax" + (window.location.protocol === "https:" ? "; Secure" : "");
+            setTimeout(function() { location.reload(); }, 150);
+        }
         </script>';
 
         return $html;
@@ -379,43 +392,99 @@ class Kzmcito_IA_SEO_Language_Detector
             return;
         }
 
+        // Si el usuario cerró el cuadro manualmente, no mostrarlo esta sesión
+        if (isset($_COOKIE['kzmcito_hide_lang_box']) && $_COOKIE['kzmcito_hide_lang_box'] === '1') {
+            return;
+        }
+
         if ($this->is_search_bot()) {
             return;
         }
 
         $current_lang = $this->detect_user_language();
-        $browser_lang = $this->detect_browser_language();
+        $browser_langs = $this->get_browser_preferred_languages();
+        $primary_browser_lang = !empty($browser_langs) ? $browser_langs[0] : 'unknown';
         $available_languages = $this->get_available_languages_for_post($post_id);
+        $ga4_id = get_option('kzmcito_ga4_measurement_id');
 
+        // Determinar si debemos mostrar el cuadro flotante
         $show_box = false;
         $box_text = '';
         $target_lang = '';
 
         if ($current_lang !== $this->default_language) {
-            // Caso: Estamos viendo una traducción, ofrecer volver al original
+            // Caso: Viendo traducción, ofrecer volver al original
             $show_box = true;
             $box_text = $this->get_ui_text('read_original', $current_lang);
             $target_lang = $this->default_language;
         } else {
-            // Caso: Estamos en español, ver si el idioma del navegador tiene traducción disponible
-            if ($browser_lang && $browser_lang !== $this->default_language && in_array($browser_lang, $available_languages)) {
+            // Caso: En español, ver si el idioma del navegador tiene traducción
+            $supported_browser_lang = $this->detect_browser_language();
+            if ($supported_browser_lang && $supported_browser_lang !== $this->default_language && in_array($supported_browser_lang, $available_languages)) {
                 $show_box = true;
-                $box_text = $this->get_ui_text('read_in', $browser_lang);
-                $target_lang = $browser_lang;
+                $box_text = $this->get_ui_text('read_in', $supported_browser_lang);
+                $target_lang = $supported_browser_lang;
             }
         }
+
+        // 1. Script de rastreo (GA4) - Se ejecuta para todos los usuarios
+        ?>
+        <script>
+            (function() {
+                const gaId = '<?php echo esc_js($ga4_id); ?>';
+                const currentLang = '<?php echo esc_js($current_lang); ?>';
+                const browserLang = '<?php echo esc_js($primary_browser_lang); ?>';
+                const supportedLangs = <?php echo json_encode(array_column($this->translation_manager->get_active_languages(), 'code')); ?>;
+                const isSupported = supportedLangs.includes(browserLang) || browserLang === 'es' || browserLang === 'unknown';
+
+                function trackEvent(name, params) {
+                    if (typeof gtag === 'function') {
+                        gtag('event', name, params);
+                    } else if (gaId) {
+                        if (!window.kzmcito_ga_loaded) {
+                            const script = document.createElement('script');
+                            script.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+                            script.async = true;
+                            document.head.appendChild(script);
+                            window.dataLayer = window.dataLayer || [];
+                            window.gtag = function(){dataLayer.push(arguments);}
+                            gtag('js', new Date());
+                            gtag('config', gaId);
+                            window.kzmcito_ga_loaded = true;
+                        }
+                        gtag('event', name, params);
+                    }
+                }
+
+                // Track inicial: Detección y solicitud de idioma
+                trackEvent('translation_interaction', {
+                    'language': currentLang,
+                    'browser_language': browserLang,
+                    'status': isSupported ? 'supported' : 'unsupported',
+                    'interaction_type': 'page_load',
+                    'is_translation': currentLang !== 'es'
+                });
+
+                // Exportar para uso en clicks
+                window.kzmcitoTrackEvent = trackEvent;
+            })();
+        </script>
+        <?php
 
         if (!$show_box) {
             return;
         }
 
-        // Renderizar el cuadro flotante
+        // 2. Renderizar UI del cuadro flotante
         ?>
         <div id="kzmcito-lang-box" class="kzmcito-premium-box">
             <div class="kzmcito-lang-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
             </div>
             <span class="kzmcito-lang-text"><?php echo esc_html($box_text); ?></span>
+            <div id="kzmcito-lang-close" class="kzmcito-close-icon" title="<?php esc_attr_e('Cerrar', 'kzmcito-ia-seo'); ?>">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
         </div>
 
         <style>
@@ -444,42 +513,33 @@ class Kzmcito_IA_SEO_Language_Detector
                 opacity: 1;
                 transform: translateY(0);
             }
-
             #kzmcito-lang-box:hover {
                 transform: translateY(-5px);
                 background: rgba(255, 255, 255, 0.9);
                 box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
                 border-color: rgba(255, 255, 255, 0.6);
             }
-
             #kzmcito-lang-box.hidden {
                 opacity: 0;
                 visibility: hidden;
                 transform: translateY(40px);
             }
-
-            .kzmcito-lang-icon {
+            .kzmcito-lang-icon { color: #0071e3; display: flex; align-items: center; }
+            .kzmcito-close-icon {
+                color: #86868b;
                 display: flex;
                 align-items: center;
-                justify-content: center;
-                color: #0071e3;
+                padding: 4px;
+                border-radius: 50%;
+                transition: background 0.2s ease;
+                margin-left: -4px;
             }
-
-            .kzmcito-lang-icon svg {
-                transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            .kzmcito-close-icon:hover {
+                background: rgba(0,0,0,0.05);
+                color: #1d1d1f;
             }
-
-            #kzmcito-lang-box:hover .kzmcito-lang-icon svg {
-                transform: rotate(15deg) scale(1.1);
-            }
-
             @media (max-width: 768px) {
-                #kzmcito-lang-box {
-                    bottom: 20px;
-                    left: 20px;
-                    right: 20px;
-                    justify-content: center;
-                }
+                #kzmcito-lang-box { bottom: 20px; left: 20px; right: 20px; justify-content: space-between; }
             }
         </style>
 
@@ -487,24 +547,51 @@ class Kzmcito_IA_SEO_Language_Detector
             (function() {
                 const box = document.getElementById('kzmcito-lang-box');
                 const targetLang = '<?php echo esc_js($target_lang); ?>';
+                const currentLang = '<?php echo esc_js($current_lang); ?>';
                 const cookieName = '<?php echo esc_js($this->cookie_name); ?>';
-                const expiry = 365 * 24 * 60 * 60; // 365 days in seconds
+                const expiry = 365 * 24 * 60 * 60;
 
                 if (!box) return;
 
-                box.addEventListener('click', function() {
+                const closeBtn = document.getElementById('kzmcito-lang-close');
+
+                box.addEventListener('click', function(e) {
+                    // Si clicamos en cerrar, no disparamos la traducción
+                    if (e.target.closest('#kzmcito-lang-close')) return;
+
+                    if (window.kzmcitoTrackEvent) {
+                        window.kzmcitoTrackEvent('translation_interaction', {
+                            'language': targetLang,
+                            'interaction_type': 'manual_switch',
+                            'previous_language': currentLang
+                        });
+                    }
+                    
                     document.cookie = cookieName + "=" + targetLang + "; path=/; max-age=" + expiry + "; SameSite=Lax" + (window.location.protocol === 'https:' ? '; Secure' : '');
                     box.style.opacity = '0.5';
                     box.style.pointerEvents = 'none';
-                    location.reload();
+                    setTimeout(() => location.reload(), 150);
                 });
 
-                window.addEventListener('scroll', function() {
-                    if (window.scrollY > 100) {
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        // Ocultar permanentemente en esta sesión
+                        document.cookie = "kzmcito_hide_lang_box=1; path=/; SameSite=Lax" + (window.location.protocol === 'https:' ? '; Secure' : '');
                         box.classList.add('hidden');
-                    } else {
-                        box.classList.remove('hidden');
-                    }
+                        
+                        if (window.kzmcitoTrackEvent) {
+                            window.kzmcitoTrackEvent('translation_interaction', {
+                                'language': currentLang,
+                                'interaction_type': 'dismiss_box'
+                            });
+                        }
+                    });
+                }
+
+                window.addEventListener('scroll', function() {
+                    if (window.scrollY > 100) box.classList.add('hidden');
+                    else box.classList.remove('hidden');
                 }, { passive: true });
             })();
         </script>
