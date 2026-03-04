@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Engine Editorial KzmCITO IA SEO
  * Plugin URI: https://kzmcito.com
- * Description: Motor editorial agentico con IA para transformación de contenidos, SEO automático y caché multilingüe. Integrado con RankMath.
- * Version: 2.0.0
+ * Description: Motor editorial agéntico con IA para transformación de contenidos, SEO automático, sumario Reuters, fallback multi-API y caché multilingüe. Compatible con cualquier sitio WordPress + RankMath.
+ * Version: 3.0.0
  * Author: KassimCITO
  * Author URI: https://kzmcito.com
  * Text Domain: kzmcito-ia-seo
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 /**
  * Constantes del Plugin
  */
-define('KZMCITO_IA_SEO_VERSION', '2.0.0');
+define('KZMCITO_IA_SEO_VERSION', '3.0.0');
 define('KZMCITO_IA_SEO_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('KZMCITO_IA_SEO_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('KZMCITO_IA_SEO_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -141,10 +141,16 @@ class Kzmcito_IA_SEO
             add_action('add_meta_boxes', [$this, 'register_meta_boxes']);
         }
 
-        // Frontend hooks (Traducción automática)
+        // Frontend hooks (Traducción automática + estilos)
         add_filter('the_content', [$this, 'filter_frontend_content'], 999);
         add_filter('the_title', [$this, 'filter_frontend_title'], 999, 2);
         add_action('wp_footer', [$this, 'render_language_floating_box']);
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
+
+        // Multilingual HTML/SEO hooks
+        add_filter('language_attributes', [$this, 'filter_html_lang_attribute'], 999);
+        add_action('wp_head', [$this, 'inject_hreflang_tags'], 1);
+        add_action('send_headers', [$this, 'send_content_language_header']);
 
         // AJAX hooks
         add_action('wp_ajax_kzmcito_process_post', [$this, 'ajax_process_post']);
@@ -171,11 +177,17 @@ class Kzmcito_IA_SEO
             'kzmcito_api_key_claude' => '',
             'kzmcito_api_key_gemini' => '',
             'kzmcito_api_key_openai' => '',
+            'kzmcito_api_key_deepseek' => '',
+            'kzmcito_api_key_mistral' => '',
+            'kzmcito_api_key_groq' => '',
             'kzmcito_auto_process' => 'no',
+            'kzmcito_enable_summary' => 'yes',
             'kzmcito_min_words' => 850,
             'kzmcito_max_words' => 1200,
             'kzmcito_enable_toc' => 'yes',
             'kzmcito_enable_faq' => 'yes',
+            'kzmcito_selected_categories' => [],
+            'kzmcito_category_prompts' => [],
             'kzmcito_active_languages' => ['en', 'pt', 'fr', 'de', 'ru', 'hi', 'zh'],
         ];
 
@@ -451,6 +463,193 @@ class Kzmcito_IA_SEO
                 'error' => __('Error al procesar el contenido', 'kzmcito-ia-seo'),
             ]
         ]);
+    }
+
+    /**
+     * Cargar assets del frontend (estilos de sumario, TOC, FAQ)
+     */
+    public function enqueue_frontend_assets()
+    {
+        if (is_singular()) {
+            wp_enqueue_style(
+                'kzmcito-ia-seo-frontend',
+                KZMCITO_IA_SEO_PLUGIN_URL . 'assets/css/frontend.css',
+                [],
+                KZMCITO_IA_SEO_VERSION
+            );
+        }
+    }
+
+    /**
+     * ==========================================
+     * MULTILINGUAL HTML/SEO TAGS
+     * ==========================================
+     */
+
+    /**
+     * Filtrar atributo lang del tag <html>
+     * 
+     * Cambia <html lang="es"> a <html lang="en"> (o el idioma detectado)
+     * Esto permite que navegadores y lectores de pantalla identifiquen el idioma del contenido.
+     * 
+     * @param string $output Current language_attributes output
+     * @return string Modified output
+     */
+    public function filter_html_lang_attribute($output)
+    {
+        if (!$this->detector || !is_singular()) {
+            return $output;
+        }
+
+        $lang = $this->detector->detect_user_language();
+
+        if ($lang && $lang !== 'es') {
+            // Mapear código de 2 letras a formato BCP 47 completo
+            $locale_map = [
+                'en' => 'en-US',
+                'pt' => 'pt-BR',
+                'fr' => 'fr-FR',
+                'de' => 'de-DE',
+                'ru' => 'ru-RU',
+                'hi' => 'hi-IN',
+                'zh' => 'zh-CN',
+                'ja' => 'ja-JP',
+                'ko' => 'ko-KR',
+                'ar' => 'ar-SA',
+                'it' => 'it-IT',
+            ];
+
+            $bcp47 = isset($locale_map[$lang]) ? $locale_map[$lang] : $lang;
+
+            // Reemplazar el lang="xx-XX" en el output
+            $output = preg_replace('/lang=["\'][^"\']*["\']/', 'lang="' . esc_attr($bcp47) . '"', $output);
+        }
+
+        return $output;
+    }
+
+    /**
+     * Inyectar tags <link rel="alternate" hreflang="xx"> en el <head>
+     * 
+     * Permite a Google y otros buscadores descubrir las versiones alternativas
+     * del contenido en otros idiomas. Esencial para SEO multilingüe.
+     * También inyecta og:locale para Open Graph (redes sociales).
+     */
+    public function inject_hreflang_tags()
+    {
+        if (!is_singular() || !$this->detector) {
+            return;
+        }
+
+        $post_id = get_the_ID();
+        if (!$post_id) {
+            return;
+        }
+
+        $available_languages = $this->detector->get_available_languages_for_post($post_id);
+        $current_url = get_permalink($post_id);
+        $current_lang = $this->detector->detect_user_language();
+
+        if (empty($available_languages) || count($available_languages) <= 1) {
+            return;
+        }
+
+        // Mapeo de código corto → BCP 47
+        $locale_map = [
+            'es' => 'es',
+            'en' => 'en',
+            'pt' => 'pt',
+            'fr' => 'fr',
+            'de' => 'de',
+            'ru' => 'ru',
+            'hi' => 'hi',
+            'zh' => 'zh-Hans',
+            'ja' => 'ja',
+            'ko' => 'ko',
+            'ar' => 'ar',
+            'it' => 'it',
+        ];
+
+        // Mapeo para og:locale (formato Facebook)
+        $og_locale_map = [
+            'es' => 'es_ES',
+            'en' => 'en_US',
+            'pt' => 'pt_BR',
+            'fr' => 'fr_FR',
+            'de' => 'de_DE',
+            'ru' => 'ru_RU',
+            'hi' => 'hi_IN',
+            'zh' => 'zh_CN',
+            'ja' => 'ja_JP',
+            'ko' => 'ko_KR',
+            'ar' => 'ar_SA',
+            'it' => 'it_IT',
+        ];
+
+        echo "\n<!-- KzmCITO IA SEO: Multilingual hreflang tags -->\n";
+
+        // 1. Tag hreflang para cada idioma disponible
+        foreach ($available_languages as $lang_code) {
+            $hreflang = isset($locale_map[$lang_code]) ? $locale_map[$lang_code] : $lang_code;
+            printf(
+                '<link rel="alternate" hreflang="%s" href="%s" />' . "\n",
+                esc_attr($hreflang),
+                esc_url($current_url)
+            );
+        }
+
+        // 2. Tag x-default (idioma predeterminado = español)
+        printf(
+            '<link rel="alternate" hreflang="x-default" href="%s" />' . "\n",
+            esc_url($current_url)
+        );
+
+        // 3. Meta Content-Language (para crawlers que lo respetan)
+        $current_bcp47 = isset($locale_map[$current_lang]) ? $locale_map[$current_lang] : $current_lang;
+        printf(
+            '<meta http-equiv="content-language" content="%s" />' . "\n",
+            esc_attr($current_bcp47)
+        );
+
+        // 4. Open Graph locale (para Facebook, LinkedIn, etc.)
+        $og_current = isset($og_locale_map[$current_lang]) ? $og_locale_map[$current_lang] : 'es_ES';
+        printf(
+            '<meta property="og:locale" content="%s" />' . "\n",
+            esc_attr($og_current)
+        );
+
+        // 5. OG alternate locales (los demás idiomas)
+        foreach ($available_languages as $lang_code) {
+            if ($lang_code === $current_lang) continue;
+            $og_alt = isset($og_locale_map[$lang_code]) ? $og_locale_map[$lang_code] : '';
+            if ($og_alt) {
+                printf(
+                    '<meta property="og:locale:alternate" content="%s" />' . "\n",
+                    esc_attr($og_alt)
+                );
+            }
+        }
+
+        echo "<!-- /KzmCITO IA SEO: Multilingual hreflang tags -->\n\n";
+    }
+
+    /**
+     * Enviar header HTTP Content-Language
+     * 
+     * Indica a nivel de protocolo HTTP qué idioma tiene la respuesta.
+     * Útil para proxies, CDNs y ciertos navegadores.
+     */
+    public function send_content_language_header()
+    {
+        if (is_admin() || !$this->detector) {
+            return;
+        }
+
+        $lang = $this->detector->detect_user_language();
+
+        if ($lang) {
+            header('Content-Language: ' . $lang);
+        }
     }
 
     /**

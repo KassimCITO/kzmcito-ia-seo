@@ -1,11 +1,13 @@
 <?php
 /**
- * Prompt Manager - Gestor de prompts por categoría
+ * Prompt Manager - Gestor de prompts dinámico
  * 
- * Carga jerárquica: System Prompt Global + Prompt de Categoría
+ * Carga jerárquica: System Prompt Global + Prompt de categorías del sitio
+ * Las categorías se leen dinámicamente de WordPress y el usuario
+ * puede crear prompts personalizados por categoría.
  * 
  * @package KzmcitoIASEO
- * @since 2.0.0
+ * @since 3.0.0
  */
 
 if (!defined('ABSPATH')) {
@@ -16,7 +18,7 @@ class Kzmcito_IA_SEO_Prompt_Manager
 {
 
     /**
-     * Directorio de prompts
+     * Directorio de prompts (solo para el global)
      */
     private $prompts_dir;
 
@@ -48,12 +50,12 @@ class Kzmcito_IA_SEO_Prompt_Manager
         }
 
         // Cargar System Prompt Global
-        $global_prompt = $this->load_prompt_file('system-prompt-global.md');
+        $global_prompt = $this->load_global_prompt();
 
-        // Cargar Prompt de Categoría
+        // Cargar Prompt de Categoría desde DB
         $category_prompt = '';
         if ($category !== 'global') {
-            $category_prompt = $this->load_category_prompt($category);
+            $category_prompt = $this->load_category_prompt_from_db($category);
         }
 
         // Fusionar prompts
@@ -79,6 +81,23 @@ class Kzmcito_IA_SEO_Prompt_Manager
     }
 
     /**
+     * Cargar prompt global (desde archivo o DB override)
+     * 
+     * @return string Global prompt content
+     */
+    private function load_global_prompt()
+    {
+        // Primero verificar si hay un override en la DB
+        $db_override = get_option('kzmcito_global_prompt_override', '');
+        if (!empty($db_override)) {
+            return $this->process_prompt_content($db_override);
+        }
+
+        // Cargar desde archivo
+        return $this->load_prompt_file('system-prompt-global.md');
+    }
+
+    /**
      * Cargar archivo de prompt
      * 
      * @param string $filename Filename
@@ -101,28 +120,20 @@ class Kzmcito_IA_SEO_Prompt_Manager
     }
 
     /**
-     * Cargar prompt de categoría
+     * Cargar prompt de categoría desde la base de datos
      * 
-     * @param string $category Category slug
+     * @param string $category_slug Category slug
      * @return string Category prompt content
      */
-    private function load_category_prompt($category)
+    private function load_category_prompt_from_db($category_slug)
     {
-        // Mapeo de categorías a archivos
-        $category_files = [
-            'michoacan' => '01-michoacan.md',
-            'educacion' => '02-educacion.md',
-            'entretenimiento' => '03-entretenimiento.md',
-            'justicia' => '04-justicia.md',
-            'salud' => '05-salud.md',
-            'seguridad' => '06-seguridad.md',
-        ];
+        $category_prompts = get_option('kzmcito_category_prompts', []);
 
-        if (!isset($category_files[$category])) {
-            return '';
+        if (isset($category_prompts[$category_slug]) && !empty($category_prompts[$category_slug])) {
+            return $this->process_prompt_content($category_prompts[$category_slug]);
         }
 
-        return $this->load_prompt_file($category_files[$category]);
+        return '';
     }
 
     /**
@@ -184,7 +195,6 @@ class Kzmcito_IA_SEO_Prompt_Manager
     private function merge_prompts($global_prompt, $category_prompt, $category)
     {
         if (empty($category_prompt)) {
-            // Modo Fallback: solo prompt global
             return $global_prompt;
         }
 
@@ -206,7 +216,104 @@ class Kzmcito_IA_SEO_Prompt_Manager
     }
 
     /**
-     * Obtener todos los prompts disponibles
+     * Obtener todas las categorías del sitio de WordPress
+     * 
+     * @return array Categories with their prompts
+     */
+    public function get_site_categories()
+    {
+        $categories = get_categories([
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+
+        $category_prompts = get_option('kzmcito_category_prompts', []);
+        $selected_categories = get_option('kzmcito_selected_categories', []);
+
+        $result = [];
+        foreach ($categories as $cat) {
+            $result[] = [
+                'id' => $cat->term_id,
+                'slug' => $cat->slug,
+                'name' => $cat->name,
+                'count' => $cat->count,
+                'selected' => in_array($cat->slug, $selected_categories),
+                'has_prompt' => !empty($category_prompts[$cat->slug] ?? ''),
+                'prompt' => $category_prompts[$cat->slug] ?? '',
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Guardar categorías seleccionadas
+     * 
+     * @param array $category_slugs Array de slugs seleccionados
+     * @return bool
+     */
+    public function save_selected_categories($category_slugs)
+    {
+        return update_option('kzmcito_selected_categories', array_map('sanitize_text_field', $category_slugs));
+    }
+
+    /**
+     * Guardar prompt personalizado de una categoría
+     * 
+     * @param string $category_slug Category slug
+     * @param string $content Prompt content
+     * @return bool Success
+     */
+    public function save_category_prompt($category_slug, $content)
+    {
+        $category_prompts = get_option('kzmcito_category_prompts', []);
+
+        // Backup anterior
+        $this->backup_category_prompt($category_slug, $category_prompts[$category_slug] ?? '');
+
+        // Guardar nuevo
+        $category_prompts[sanitize_text_field($category_slug)] = wp_kses_post($content);
+        $result = update_option('kzmcito_category_prompts', $category_prompts);
+
+        // Limpiar cache
+        $this->prompts_cache = [];
+
+        if ($result) {
+            error_log(sprintf(
+                '[Kzmcito IA SEO] Prompt de categoría actualizado: %s (%d bytes)',
+                $category_slug,
+                strlen($content)
+            ));
+        }
+
+        return $result;
+    }
+
+    /**
+     * Backup de prompt de categoría
+     */
+    private function backup_category_prompt($category_slug, $old_content)
+    {
+        if (empty($old_content)) return;
+
+        $backups = get_option('kzmcito_prompt_backups', []);
+        $backups[$category_slug][] = [
+            'content' => $old_content,
+            'timestamp' => time(),
+            'date' => current_time('mysql'),
+        ];
+
+        // Mantener solo los últimos 5 backups por categoría
+        if (count($backups[$category_slug]) > 5) {
+            $backups[$category_slug] = array_slice($backups[$category_slug], -5);
+        }
+
+        update_option('kzmcito_prompt_backups', $backups);
+    }
+
+    /**
+     * Obtener prompts disponibles (global + categorías con prompt)
      * 
      * @return array Available prompts
      */
@@ -218,32 +325,64 @@ class Kzmcito_IA_SEO_Prompt_Manager
         $prompts['global'] = [
             'name' => __('Sistema Global', 'kzmcito-ia-seo'),
             'file' => 'system-prompt-global.md',
-            'content' => $this->load_prompt_file('system-prompt-global.md'),
+            'content' => $this->load_global_prompt(),
+            'source' => 'file',
         ];
 
-        // Prompts de categoría
-        $categories = [
-            'michoacan' => ['name' => 'Michoacán', 'file' => '01-michoacan.md'],
-            'educacion' => ['name' => 'Educación', 'file' => '02-educacion.md'],
-            'entretenimiento' => ['name' => 'Entretenimiento', 'file' => '03-entretenimiento.md'],
-            'justicia' => ['name' => 'Justicia', 'file' => '04-justicia.md'],
-            'salud' => ['name' => 'Salud', 'file' => '05-salud.md'],
-            'seguridad' => ['name' => 'Seguridad', 'file' => '06-seguridad.md'],
-        ];
+        // Prompts de categorías configuradas
+        $category_prompts = get_option('kzmcito_category_prompts', []);
+        $selected_categories = get_option('kzmcito_selected_categories', []);
 
-        foreach ($categories as $slug => $data) {
-            $prompts[$slug] = [
-                'name' => $data['name'],
-                'file' => $data['file'],
-                'content' => $this->load_prompt_file($data['file']),
-            ];
+        foreach ($selected_categories as $slug) {
+            $term = get_term_by('slug', $slug, 'category');
+            if ($term) {
+                $prompts[$slug] = [
+                    'name' => $term->name,
+                    'file' => 'db:category_prompt',
+                    'content' => $category_prompts[$slug] ?? '',
+                    'source' => 'database',
+                ];
+            }
         }
 
         return $prompts;
     }
 
     /**
-     * Guardar prompt editado
+     * Guardar prompt global (override en DB)
+     * 
+     * @param string $content New content
+     * @return bool Success
+     */
+    public function save_global_prompt($content)
+    {
+        // También guardar en archivo como respaldo
+        $filepath = $this->prompts_dir . 'system-prompt-global.md';
+
+        // Crear backup del archivo
+        if (file_exists($filepath)) {
+            $backup_dir = $this->prompts_dir . 'backups/';
+            if (!file_exists($backup_dir)) {
+                wp_mkdir_p($backup_dir);
+            }
+            $backup_file = $backup_dir . 'system-prompt-global.md.' . time() . '.bak';
+            copy($filepath, $backup_file);
+        }
+
+        // Guardar en archivo
+        file_put_contents($filepath, $content);
+
+        // Guardar override en DB
+        update_option('kzmcito_global_prompt_override', wp_kses_post($content));
+
+        // Limpiar cache
+        $this->prompts_cache = [];
+
+        return true;
+    }
+
+    /**
+     * Guardar prompt editado (compatibilidad con interfaz existente)
      * 
      * @param string $category Category slug or 'global'
      * @param string $content New content
@@ -251,58 +390,54 @@ class Kzmcito_IA_SEO_Prompt_Manager
      */
     public function save_prompt($category, $content)
     {
-        // Sanitizar contenido
-        $content = wp_kses_post($content);
-
-        // Determinar archivo
         if ($category === 'global') {
-            $filename = 'system-prompt-global.md';
-        } else {
-            $category_files = [
-                'michoacan' => '01-michoacan.md',
-                'educacion' => '02-educacion.md',
-                'entretenimiento' => '03-entretenimiento.md',
-                'justicia' => '04-justicia.md',
-                'salud' => '05-salud.md',
-                'seguridad' => '06-seguridad.md',
-            ];
-
-            if (!isset($category_files[$category])) {
-                return false;
-            }
-
-            $filename = $category_files[$category];
+            return $this->save_global_prompt($content);
         }
 
-        $filepath = $this->prompts_dir . $filename;
+        return $this->save_category_prompt($category, $content);
+    }
 
-        // Crear backup
-        if (file_exists($filepath)) {
+    /**
+     * Obtener backups disponibles para una categoría
+     * 
+     * @param string $category Category slug or 'global'
+     * @return array Backups
+     */
+    public function get_backups($category)
+    {
+        if ($category === 'global') {
+            // Backups de archivo
             $backup_dir = $this->prompts_dir . 'backups/';
             if (!file_exists($backup_dir)) {
-                wp_mkdir_p($backup_dir);
+                return [];
             }
 
-            $backup_file = $backup_dir . $filename . '.' . time() . '.bak';
-            copy($filepath, $backup_file);
+            $backups = [];
+            $files = glob($backup_dir . 'system-prompt-global.md.*.bak');
+
+            foreach ($files as $file) {
+                preg_match('/\.(\d+)\.bak$/', $file, $matches);
+                if (isset($matches[1])) {
+                    $timestamp = $matches[1];
+                    $backups[] = [
+                        'timestamp' => $timestamp,
+                        'date' => date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $timestamp),
+                        'file' => basename($file),
+                        'size' => filesize($file),
+                    ];
+                }
+            }
+
+            usort($backups, function ($a, $b) {
+                return $b['timestamp'] - $a['timestamp'];
+            });
+
+            return $backups;
         }
 
-        // Guardar nuevo contenido
-        $result = file_put_contents($filepath, $content);
-
-        // Limpiar cache
-        $this->prompts_cache = [];
-
-        // Log
-        if ($result !== false) {
-            error_log(sprintf(
-                '[Kzmcito IA SEO] Prompt actualizado: %s (%d bytes)',
-                $category,
-                $result
-            ));
-        }
-
-        return $result !== false;
+        // Backups de categoría desde DB
+        $all_backups = get_option('kzmcito_prompt_backups', []);
+        return $all_backups[$category] ?? [];
     }
 
     /**
@@ -314,97 +449,36 @@ class Kzmcito_IA_SEO_Prompt_Manager
      */
     public function restore_prompt($category, $backup_timestamp)
     {
-        // Determinar archivo
         if ($category === 'global') {
-            $filename = 'system-prompt-global.md';
-        } else {
-            $category_files = [
-                'michoacan' => '01-michoacan.md',
-                'educacion' => '02-educacion.md',
-                'entretenimiento' => '03-entretenimiento.md',
-                'justicia' => '04-justicia.md',
-                'salud' => '05-salud.md',
-                'seguridad' => '06-seguridad.md',
-            ];
-
-            if (!isset($category_files[$category])) {
+            $backup_file = $this->prompts_dir . 'backups/system-prompt-global.md.' . $backup_timestamp . '.bak';
+            if (!file_exists($backup_file)) {
                 return false;
             }
 
-            $filename = $category_files[$category];
-        }
+            $filepath = $this->prompts_dir . 'system-prompt-global.md';
+            $result = copy($backup_file, $filepath);
 
-        $backup_file = $this->prompts_dir . 'backups/' . $filename . '.' . $backup_timestamp . '.bak';
-
-        if (!file_exists($backup_file)) {
-            return false;
-        }
-
-        $filepath = $this->prompts_dir . $filename;
-        $result = copy($backup_file, $filepath);
-
-        // Limpiar cache
-        $this->prompts_cache = [];
-
-        return $result;
-    }
-
-    /**
-     * Obtener backups disponibles
-     * 
-     * @param string $category Category slug or 'global'
-     * @return array Backups
-     */
-    public function get_backups($category)
-    {
-        // Determinar archivo
-        if ($category === 'global') {
-            $filename = 'system-prompt-global.md';
-        } else {
-            $category_files = [
-                'michoacan' => '01-michoacan.md',
-                'educacion' => '02-educacion.md',
-                'entretenimiento' => '03-entretenimiento.md',
-                'justicia' => '04-justicia.md',
-                'salud' => '05-salud.md',
-                'seguridad' => '06-seguridad.md',
-            ];
-
-            if (!isset($category_files[$category])) {
-                return [];
+            // Actualizar DB override también
+            if ($result) {
+                $content = file_get_contents($filepath);
+                update_option('kzmcito_global_prompt_override', $content);
             }
 
-            $filename = $category_files[$category];
+            $this->prompts_cache = [];
+            return $result;
         }
 
-        $backup_dir = $this->prompts_dir . 'backups/';
+        // Restaurar categoría desde DB backup
+        $all_backups = get_option('kzmcito_prompt_backups', []);
+        $cat_backups = $all_backups[$category] ?? [];
 
-        if (!file_exists($backup_dir)) {
-            return [];
-        }
-
-        $backups = [];
-        $files = glob($backup_dir . $filename . '.*.bak');
-
-        foreach ($files as $file) {
-            preg_match('/\.(\d+)\.bak$/', $file, $matches);
-            if (isset($matches[1])) {
-                $timestamp = $matches[1];
-                $backups[] = [
-                    'timestamp' => $timestamp,
-                    'date' => date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $timestamp),
-                    'file' => basename($file),
-                    'size' => filesize($file),
-                ];
+        foreach ($cat_backups as $backup) {
+            if ((string)$backup['timestamp'] === (string)$backup_timestamp) {
+                return $this->save_category_prompt($category, $backup['content']);
             }
         }
 
-        // Ordenar por timestamp descendente
-        usort($backups, function ($a, $b) {
-            return $b['timestamp'] - $a['timestamp'];
-        });
-
-        return $backups;
+        return false;
     }
 
     /**
@@ -416,7 +490,7 @@ class Kzmcito_IA_SEO_Prompt_Manager
     {
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log(sprintf(
-                '[Kzmcito IA SEO] [FALLBACK MODE] Categoría "%s" no encontrada, usando solo prompt global',
+                '[Kzmcito IA SEO] [FALLBACK MODE] Categoría "%s" no tiene prompt personalizado, usando solo prompt global',
                 $category
             ));
         }
@@ -449,11 +523,10 @@ class Kzmcito_IA_SEO_Prompt_Manager
 
             $results[$slug] = [
                 'name' => $data['name'],
-                'file' => $data['file'],
-                'exists' => file_exists($this->prompts_dir . $data['file']),
+                'source' => $data['source'],
                 'is_valid' => $is_valid,
                 'word_count' => $word_count,
-                'size' => file_exists($this->prompts_dir . $data['file']) ? filesize($this->prompts_dir . $data['file']) : 0,
+                'size' => strlen($data['content']),
             ];
         }
 

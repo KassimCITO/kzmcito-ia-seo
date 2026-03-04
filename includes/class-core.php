@@ -2,10 +2,11 @@
 /**
  * Core Orchestrator - Motor principal del plugin
  * 
- * Orquesta el pipeline de 4 fases según Antigravity Master Specification
+ * Orquesta el pipeline de 4 fases + sumario Reuters
+ * Categorías dinámicas del sitio WordPress
  * 
  * @package KzmcitoIASEO
- * @since 2.0.0
+ * @since 3.0.0
  */
 
 if (!defined('ABSPATH')) {
@@ -61,7 +62,7 @@ class Kzmcito_IA_SEO_Core
     }
 
     /**
-     * Pipeline de 4 Fases - Procesamiento completo
+     * Pipeline de 4 Fases + Sumario - Procesamiento completo
      * 
      * @param array $data Post data
      * @param array $postarr Post array
@@ -73,7 +74,7 @@ class Kzmcito_IA_SEO_Core
             $post_id = isset($postarr['ID']) ? $postarr['ID'] : 0;
 
             // Registrar inicio del procesamiento
-            $this->log_event('pipeline_start', $post_id, 'Iniciando pipeline de 4 fases');
+            $this->log_event('pipeline_start', $post_id, 'Iniciando pipeline de 4 fases + sumario');
 
             // FASE 1: ANÁLISIS
             $analysis = $this->phase_1_analysis($data, $postarr);
@@ -83,18 +84,28 @@ class Kzmcito_IA_SEO_Core
             $transformed_data = $this->phase_2_transformation($data, $analysis);
             $this->log_event('phase_2_complete', $post_id, 'Transformación completada');
 
-            // FASE 2.5: OPTIMIZACIÓN DE SLUG (Para Redirecciones RankMath adecuadas)
+            // FASE 2.5: OPTIMIZACIÓN DE SLUG
             if ($post_id) {
                 $optimized_slug = $this->seo_injector->generate_optimized_slug(
-                    $post_id, 
-                    get_post($post_id), 
+                    $post_id,
+                    get_post($post_id),
                     $transformed_data['post_title']
                 );
-                
+
                 if ($optimized_slug) {
                     $transformed_data['post_name'] = $optimized_slug;
                     $this->log_event('slug_optimized_filter', $post_id, 'Slug optimizado en el filtro: ' . $optimized_slug);
                 }
+            }
+
+            // FASE 2.7: SUMARIO REUTERS (Key Takeaways)
+            if (get_option('kzmcito_enable_summary', 'yes') === 'yes') {
+                $transformed_data['post_content'] = $this->content_processor->maybe_insert_summary(
+                    $transformed_data['post_content'],
+                    $transformed_data['post_title'],
+                    $analysis
+                );
+                $this->log_event('summary_processed', $post_id, 'Sumario Reuters procesado');
             }
 
             // FASE 3: INYECCIÓN SEO
@@ -128,12 +139,12 @@ class Kzmcito_IA_SEO_Core
     {
         $content = $data['post_content'];
         $title = str_replace(['«', '»'], '"', $data['post_title']);
-        $data['post_title'] = $title; // Sanitizar también en el objeto de datos original
+        $data['post_title'] = $title;
 
-        // Detectar categoría del post
+        // Detectar categoría del post (ahora dinámico)
         $category = $this->detect_category($postarr);
 
-        // Cargar prompts (Global + Categoría)
+        // Cargar prompts (Global + Categoría personalizada)
         $prompts = $this->prompt_manager->load_prompts($category);
 
         // Análisis de contenido
@@ -147,6 +158,7 @@ class Kzmcito_IA_SEO_Core
             'needs_expansion' => str_word_count(strip_tags($content)) < get_option('kzmcito_min_words', 650),
             'needs_toc' => $this->count_headings($content)['h2'] >= 2,
             'needs_faq' => $this->should_add_faq($content, $category),
+            'has_summary' => $this->content_has_summary($content),
         ];
 
         return $analysis;
@@ -236,7 +248,7 @@ class Kzmcito_IA_SEO_Core
     public function ensure_post_is_processed($post_id)
     {
         $last_processed = get_post_meta($post_id, '_kzmcito_last_processed', true);
-        
+
         if ($last_processed) {
             return true;
         }
@@ -288,20 +300,17 @@ class Kzmcito_IA_SEO_Core
         // Obtener datos de análisis
         $analysis = get_post_meta($post_id, '_kzmcito_analysis_data', true);
 
-        // EJECUTAR FASE 3 (SEO INJECTION) - Esto es rápido y necesario en el guardado
+        // EJECUTAR FASE 3 (SEO INJECTION)
         if (get_post_meta($post_id, '_kzmcito_pending_seo_injection', true)) {
             $this->phase_3_seo_injection($post_id, $analysis);
         }
 
-        // COMENTADO: Ya no generamos todas las traducciones en el save_post
         // Las traducciones se generarán Just-In-Time (JIT) en la primera visita real
-        // $this->translation_manager->generate_translations($post_id, $post, $analysis);
-
         $this->log_event('save_process_complete', $post_id, 'Proceso de guardado completado. Traducciones pendientes para JIT.');
 
         // LIMPIAR CACHÉ
         $this->cache_manager->clear_post_cache($post_id);
-        
+
         // Purgar Cloudflare
         $this->cache_manager->purge_cloudflare($post_id);
 
@@ -368,7 +377,10 @@ class Kzmcito_IA_SEO_Core
     }
 
     /**
-     * Detectar categoría del post
+     * Detectar categoría del post (DINÁMICO)
+     * 
+     * Ahora lee las categorías seleccionadas por el usuario en la configuración
+     * y hace matching dinámico con las categorías del post.
      * 
      * @param array $postarr Post array
      * @return string Category slug
@@ -377,32 +389,52 @@ class Kzmcito_IA_SEO_Core
     {
         $categories = isset($postarr['post_category']) ? $postarr['post_category'] : [];
 
-        // Mapeo de categorías a prompts
-        $category_map = [
-            'michoacan' => '01-michoacan',
-            'educacion' => '02-educacion',
-            'entretenimiento' => '03-entretenimiento',
-            'justicia' => '04-justicia',
-            'salud' => '05-salud',
-            'seguridad' => '06-seguridad',
-        ];
+        // Obtener categorías seleccionadas por el usuario
+        $selected_categories = get_option('kzmcito_selected_categories', []);
+
+        if (empty($selected_categories)) {
+            // Si no hay categorías configuradas, usar global
+            $this->log_event('category_no_config', 0, 'No hay categorías configuradas, usando prompt global');
+            return 'global';
+        }
 
         // Buscar categoría coincidente
         foreach ($categories as $cat_id) {
             $category = get_category($cat_id);
             if ($category) {
                 $slug = $category->slug;
-                foreach ($category_map as $key => $prompt_file) {
-                    if (strpos($slug, $key) !== false) {
-                        return $key;
+                // Match directo con categorías seleccionadas
+                if (in_array($slug, $selected_categories)) {
+                    return $slug;
+                }
+                // Match parcial (subcategorías)
+                foreach ($selected_categories as $sel_slug) {
+                    if (strpos($slug, $sel_slug) !== false || strpos($sel_slug, $slug) !== false) {
+                        return $sel_slug;
                     }
                 }
             }
         }
 
         // Fallback: usar prompt global
-        $this->log_event('category_fallback', 0, 'No se detectó categoría específica, usando prompt global');
+        $this->log_event('category_fallback', 0, 'No se detectó categoría configurada, usando prompt global');
         return 'global';
+    }
+
+    /**
+     * Verificar si el contenido ya tiene un sumario
+     * 
+     * @param string $content Post content
+     * @return bool
+     */
+    private function content_has_summary($content)
+    {
+        // Buscar el div contenedor del sumario
+        return (
+            strpos($content, 'kzmcito-summary') !== false ||
+            strpos($content, 'kzmcito-key-takeaways') !== false ||
+            strpos($content, 'key-takeaways') !== false
+        );
     }
 
     /**
@@ -429,12 +461,11 @@ class Kzmcito_IA_SEO_Core
      */
     private function extract_keywords($content, $title)
     {
-        // Implementación básica - puede mejorarse con NLP
         $text = strip_tags($content . ' ' . $title);
         $words = str_word_count(strtolower($text), 1, 'áéíóúñü');
 
-        // Filtrar palabras comunes (stop words)
-        $stop_words = ['el', 'la', 'de', 'que', 'y', 'a', 'en', 'un', 'ser', 'se', 'no', 'haber', 'por', 'con', 'su', 'para', 'como', 'estar', 'tener', 'le', 'lo', 'todo', 'pero', 'más', 'hacer', 'o', 'poder', 'decir', 'este', 'ir', 'otro', 'ese', 'la', 'si', 'me', 'ya', 'ver', 'porque', 'dar', 'cuando', 'él', 'muy', 'sin', 'vez', 'mucho', 'saber', 'qué', 'sobre', 'mi', 'alguno', 'mismo', 'yo', 'también', 'hasta', 'año', 'dos', 'querer', 'entre', 'así', 'primero', 'desde', 'grande', 'eso', 'ni', 'nos', 'llegar', 'pasar', 'tiempo', 'ella', 'sí', 'día', 'uno', 'bien', 'poco', 'deber', 'entonces', 'poner', 'cosa', 'tanto', 'hombre', 'parecer', 'nuestro', 'tan', 'donde', 'ahora', 'parte', 'después', 'vida', 'quedar', 'siempre', 'creer', 'hablar', 'llevar', 'dejar', 'nada', 'cada', 'seguir', 'menos', 'nuevo', 'encontrar', 'algo', 'solo', 'decir', 'salir', 'volver', 'tomar', 'conocer', 'vivir', 'sentir', 'tratar', 'mirar', 'contar', 'empezar', 'esperar', 'buscar', 'existir', 'entrar', 'trabajar', 'escribir', 'perder', 'producir', 'ocurrir', 'entender', 'pedir', 'recibir', 'recordar', 'terminar', 'permitir', 'aparecer', 'conseguir', 'comenzar', 'servir', 'sacar', 'necesitar', 'mantener', 'resultar', 'leer', 'caer', 'cambiar', 'presentar', 'crear', 'abrir', 'considerar', 'oír', 'acabar', 'mil', 'contra', 'cual'];
+        // Filtrar stop words (español + inglés)
+        $stop_words = ['el', 'la', 'de', 'que', 'y', 'a', 'en', 'un', 'ser', 'se', 'no', 'haber', 'por', 'con', 'su', 'para', 'como', 'estar', 'tener', 'le', 'lo', 'todo', 'pero', 'más', 'hacer', 'o', 'poder', 'decir', 'este', 'ir', 'otro', 'ese', 'la', 'si', 'me', 'ya', 'ver', 'porque', 'dar', 'cuando', 'él', 'muy', 'sin', 'vez', 'mucho', 'saber', 'qué', 'sobre', 'mi', 'alguno', 'mismo', 'yo', 'también', 'hasta', 'the', 'and', 'is', 'in', 'to', 'of', 'it', 'for', 'that', 'on', 'was', 'with', 'as', 'are', 'at', 'be', 'this', 'have', 'from', 'or', 'an', 'by', 'not', 'but', 'what', 'all', 'were', 'when', 'can', 'there', 'has'];
 
         $words = array_diff($words, $stop_words);
         $word_freq = array_count_values($words);
@@ -451,7 +482,6 @@ class Kzmcito_IA_SEO_Core
      */
     private function extract_entities($content)
     {
-        // Implementación básica - detectar palabras capitalizadas
         $text = strip_tags($content);
         preg_match_all('/\b[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*\b/', $text, $matches);
 
@@ -467,10 +497,10 @@ class Kzmcito_IA_SEO_Core
      */
     private function should_add_faq($content, $category)
     {
-        // Categorías que típicamente necesitan FAQ
-        $faq_categories = ['salud', 'educacion', 'justicia'];
+        // Categorías que configuró el usuario como FAQ-friendly
+        $faq_categories = get_option('kzmcito_faq_categories', []);
 
-        if (in_array($category, $faq_categories)) {
+        if (!empty($faq_categories) && in_array($category, $faq_categories)) {
             return true;
         }
 

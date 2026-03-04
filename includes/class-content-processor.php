@@ -2,10 +2,10 @@
 /**
  * Content Processor - Procesador de contenido (Fase 2)
  * 
- * Limpieza, TOC, FAQ, Expansión y mejora de encabezados
+ * Limpieza, TOC, FAQ, Expansión, encabezados y Sumario Reuters
  * 
  * @package KzmcitoIASEO
- * @since 2.0.0
+ * @since 3.0.0
  */
 
 if (!defined('ABSPATH')) {
@@ -77,7 +77,7 @@ class Kzmcito_IA_SEO_Content_Processor
     public function render_google_maps($content)
     {
         $api_key = get_option('kzmcito_google_maps_api_key', '');
-        
+
         if (empty($api_key)) {
             // Si no hay API Key, eliminar los marcadores para no ensuciar el post
             return preg_replace('/\[kzmcito_google_map location=".*?"\]/', '', $content);
@@ -85,7 +85,7 @@ class Kzmcito_IA_SEO_Content_Processor
 
         return preg_replace_callback(
             '/\[kzmcito_google_map location="(.*?)"\]/',
-            function($matches) use ($api_key) {
+            function ($matches) use ($api_key) {
                 $location = urlencode($matches[1]);
                 $map_html = '<div class="kzmcito-google-map-container" style="margin: 25px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">';
                 $map_html .= sprintf(
@@ -110,20 +110,18 @@ class Kzmcito_IA_SEO_Content_Processor
     public function linkify_contacts($content)
     {
         // 1. Linkificar Correos Electrónicos
-        // Regex para detectar emails que NO estén ya dentro de un atributo href o un tag <a>
         $content = preg_replace_callback(
             '/(?<!href=["\'])(?<!>)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i',
-            function($matches) {
+            function ($matches) {
                 return '<a href="mailto:' . esc_attr($matches[0]) . '">' . esc_html($matches[0]) . '</a>';
             },
             $content
         );
 
-        // 2. Linkificar Teléfonos (Formato común: +XX XXX XXX XXXX o 10 dígitos)
-        // Buscamos patrones numéricos de 10 dígitos o con código de país
+        // 2. Linkificar Teléfonos
         $content = preg_replace_callback(
-            '/(?<!href=["\'])(?<!>)\b(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/',
-            function($matches) {
+            '/(?<!href=["\'])(?<!>)\b(\+?\d{1,3}[-.\\s]?)?\(?\d{3}\)?[-.\\s]?\d{3}[-.\\s]?\d{4}\b/',
+            function ($matches) {
                 $clean_tel = preg_replace('/\D/', '', $matches[0]);
                 return '<a href="tel:' . esc_attr($clean_tel) . '">' . esc_html($matches[0]) . '</a>';
             },
@@ -132,6 +130,155 @@ class Kzmcito_IA_SEO_Content_Processor
 
         return $content;
     }
+
+    /**
+     * ==========================================
+     * SUMARIO REUTERS (Key Takeaways)
+     * ==========================================
+     */
+
+    /**
+     * Insertar sumario si no existe
+     * 
+     * @param string $content Post content
+     * @param string $title Post title
+     * @param array $analysis Analysis data
+     * @return string Content with summary
+     */
+    public function maybe_insert_summary($content, $title, $analysis)
+    {
+        // Ya tiene sumario, no duplicar
+        if ($analysis['has_summary']) {
+            return $content;
+        }
+
+        // Generar sumario con IA
+        $summary_items = $this->generate_summary($content, $title, $analysis);
+
+        if (empty($summary_items)) {
+            return $content;
+        }
+
+        // Construir HTML del sumario estilo Reuters
+        $summary_html = $this->build_reuters_summary_html($summary_items);
+
+        // Insertar después del primer párrafo
+        $first_p_pos = strpos($content, '</p>');
+        if ($first_p_pos !== false) {
+            $content = substr_replace($content, '</p>' . "\n\n" . $summary_html . "\n\n", $first_p_pos, 4);
+        } else {
+            $content = $summary_html . "\n\n" . $content;
+        }
+
+        return $content;
+    }
+
+    /**
+     * Generar sumario usando IA
+     * 
+     * @param string $content Post content
+     * @param string $title Post title
+     * @param array $analysis Analysis data
+     * @return array Summary bullet points
+     */
+    private function generate_summary($content, $title, $analysis)
+    {
+        $summary_prompt = "";
+
+        // Añadir prompt del sistema si está disponible
+        if (!empty($analysis['prompts']['merged'])) {
+            $summary_prompt .= $analysis['prompts']['merged'] . "\n\n";
+        }
+
+        $summary_prompt .= "# TAREA: GENERAR SUMARIO EJECUTIVO (KEY TAKEAWAYS)\n\n";
+        $summary_prompt .= "## Título del artículo:\n{$title}\n\n";
+        $summary_prompt .= "## Contenido del artículo:\n" . wp_trim_words(strip_tags($content), 500) . "\n\n";
+        $summary_prompt .= "## Instrucciones:\n";
+        $summary_prompt .= "1. Genera entre 3 y 5 ideas clave (key takeaways) que resuman el artículo\n";
+        $summary_prompt .= "2. Cada punto debe ser una oración concisa de 10-20 palabras\n";
+        $summary_prompt .= "3. Los puntos deben dar al lector una idea clara de lo que tratará el artículo\n";
+        $summary_prompt .= "4. Usa lenguaje directo, informativo y objetivo (estilo Reuters/AP)\n";
+        $summary_prompt .= "5. NO incluyas opiniones, solo hechos y datos clave\n";
+        $summary_prompt .= "6. Devuelve SOLO un array JSON con las ideas como strings:\n";
+        $summary_prompt .= '   ["Punto 1...", "Punto 2...", "Punto 3..."]' . "\n\n";
+        $summary_prompt .= "Sumario JSON:\n";
+
+        $response = $this->api_client->generate_content($summary_prompt, [
+            'max_tokens' => 500,
+            'temperature' => 0.5,
+        ]);
+
+        if ($response && !empty($response['content'])) {
+            // Extraer JSON de la respuesta
+            $json_match = preg_match('/\[.*\]/s', $response['content'], $matches);
+            if ($json_match) {
+                $items = json_decode($matches[0], true);
+                if (is_array($items) && count($items) >= 3 && count($items) <= 5) {
+                    return $items;
+                }
+            }
+        }
+
+        // Fallback: extraer oraciones clave del contenido
+        return $this->extract_key_sentences($content, $title);
+    }
+
+    /**
+     * Fallback: Extraer oraciones clave del contenido
+     * 
+     * @param string $content Post content
+     * @param string $title Post title  
+     * @return array Key sentences (3-5)
+     */
+    private function extract_key_sentences($content, $title)
+    {
+        $text = strip_tags($content);
+        $sentences = preg_split('/[.!?]+/', $text);
+        $sentences = array_filter(array_map('trim', $sentences), function ($s) {
+            return strlen($s) > 30 && strlen($s) < 200;
+        });
+
+        if (count($sentences) < 3) {
+            return [];
+        }
+
+        // Tomar las primeras 3-4 oraciones significativas
+        return array_slice(array_values($sentences), 0, min(4, count($sentences)));
+    }
+
+    /**
+     * Construir HTML del sumario estilo Reuters
+     * 
+     * @param array $items Summary items
+     * @return string HTML
+     */
+    private function build_reuters_summary_html($items)
+    {
+        $html = '<div class="kzmcito-summary kzmcito-key-takeaways" role="region" aria-label="' . esc_attr__('Ideas clave', 'kzmcito-ia-seo') . '">';
+        $html .= '<div class="kzmcito-summary-header">';
+        $html .= '<span class="kzmcito-summary-icon" aria-hidden="true">&#9679;</span>';
+        $html .= '<span class="kzmcito-summary-title">' . esc_html__('Ideas Clave', 'kzmcito-ia-seo') . '</span>';
+        $html .= '</div>';
+        $html .= '<ul class="kzmcito-summary-list">';
+
+        foreach ($items as $item) {
+            $html .= '<li class="kzmcito-summary-item">';
+            $html .= '<span class="kzmcito-summary-bullet" aria-hidden="true"></span>';
+            $html .= '<span class="kzmcito-summary-text">' . esc_html(trim($item)) . '</span>';
+            $html .= '</li>';
+        }
+
+        $html .= '</ul>';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * ==========================================
+     * EXPANSIÓN DE CONTENIDO
+     * ==========================================
+     */
 
     /**
      * Expandir contenido corto usando IA
@@ -170,13 +317,6 @@ class Kzmcito_IA_SEO_Content_Processor
 
     /**
      * Construir prompt para expansión de contenido
-     * 
-     * @param string $content Original content
-     * @param string $title Post title
-     * @param array $prompts Prompts data
-     * @param int $min_words Minimum words
-     * @param int $max_words Maximum words
-     * @return string Expansion prompt
      */
     private function build_expansion_prompt($content, $title, $prompts, $min_words, $max_words)
     {
@@ -195,6 +335,12 @@ class Kzmcito_IA_SEO_Content_Processor
 
         return $prompt;
     }
+
+    /**
+     * ==========================================
+     * ENCABEZADOS
+     * ==========================================
+     */
 
     /**
      * Mejorar encabezados H2-H4
@@ -242,9 +388,6 @@ class Kzmcito_IA_SEO_Content_Processor
 
     /**
      * Generar encabezado desde párrafo
-     * 
-     * @param string $paragraph Paragraph content
-     * @return string|false Heading text or false
      */
     private function generate_heading_from_paragraph($paragraph)
     {
@@ -267,6 +410,12 @@ class Kzmcito_IA_SEO_Content_Processor
 
         return $heading;
     }
+
+    /**
+     * ==========================================
+     * TABLE OF CONTENTS (TOC)
+     * ==========================================
+     */
 
     /**
      * Insertar tabla de contenidos (TOC)
@@ -306,16 +455,28 @@ class Kzmcito_IA_SEO_Content_Processor
         $toc .= '</ul>';
         $toc .= '</div>';
 
-        // Insertar TOC después del primer párrafo
-        $first_p_pos = strpos($content, '</p>');
-        if ($first_p_pos !== false) {
-            $content = substr_replace($content, '</p>' . "\n\n" . $toc . "\n\n", $first_p_pos, 4);
+        // Insertar TOC después del sumario si existe, o después del primer párrafo
+        $summary_end = strpos($content, '</div><!-- /kzmcito-summary -->');
+        if ($summary_end !== false) {
+            $insert_pos = $summary_end + strlen('</div><!-- /kzmcito-summary -->');
+            $content = substr_replace($content, "\n\n" . $toc . "\n\n", $insert_pos, 0);
         } else {
-            $content = $toc . "\n\n" . $content;
+            $first_p_pos = strpos($content, '</p>');
+            if ($first_p_pos !== false) {
+                $content = substr_replace($content, '</p>' . "\n\n" . $toc . "\n\n", $first_p_pos, 4);
+            } else {
+                $content = $toc . "\n\n" . $content;
+            }
         }
 
         return $content;
     }
+
+    /**
+     * ==========================================
+     * FAQ
+     * ==========================================
+     */
 
     /**
      * Insertar FAQ con Schema JSON-LD
@@ -375,10 +536,6 @@ class Kzmcito_IA_SEO_Content_Processor
 
     /**
      * Generar FAQ usando IA
-     * 
-     * @param string $content Content
-     * @param array $analysis Analysis data
-     * @return array FAQ items
      */
     private function generate_faq($content, $analysis)
     {
@@ -391,7 +548,7 @@ class Kzmcito_IA_SEO_Content_Processor
         $faq_prompt .= "2. Cada pregunta debe tener una respuesta concisa (50-100 palabras)\n";
         $faq_prompt .= "3. Las preguntas deben ser naturales y útiles para el lector\n";
         $faq_prompt .= "4. Devuelve el resultado en formato JSON:\n";
-        $faq_prompt .= '   [{"question": "...", "answer": "..."}, ...]\n\n';
+        $faq_prompt .= '   [{"question": "...", "answer": "..."}, ...]' . "\n\n";
         $faq_prompt .= "FAQ en JSON:\n";
 
         // Llamar a la API
