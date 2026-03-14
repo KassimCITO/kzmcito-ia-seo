@@ -163,67 +163,57 @@ class Kzmcito_IA_SEO_Admin_UI
                     </tr>
                 </table>
 
-                <!-- ===== SECCIÓN: API KEYS ===== -->
-                <h2 class="kzmcito-section-title">
-                    <span class="dashicons dashicons-admin-network"></span>
-                    <?php _e('Claves API (Fallback en Cascada)', 'kzmcito-ia-seo'); ?>
-                </h2>
-                <p class="description" style="margin-bottom: 15px;">
-                    <?php _e('Configura múltiples API keys. Si el modelo principal falla, se intentará automáticamente con los demás proveedores que tengan key configurada.', 'kzmcito-ia-seo'); ?>
-                </p>
-                <table class="form-table">
-                    <?php
-                    $api_configs = [
-                        ['key' => 'kzmcito_api_key_claude', 'label' => 'Claude (Anthropic)', 'url' => 'https://console.anthropic.com/settings/keys', 'url_label' => 'Obtener API Key de Claude'],
-                        ['key' => 'kzmcito_api_key_gemini', 'label' => 'Gemini (Google)', 'url' => 'https://makersuite.google.com/app/apikey', 'url_label' => 'Obtener API Key de Gemini'],
-                        ['key' => 'kzmcito_api_key_openai', 'label' => 'OpenAI (GPT / Codex)', 'url' => 'https://platform.openai.com/api-keys', 'url_label' => 'Obtener API Key de OpenAI'],
-                        ['key' => 'kzmcito_api_key_deepseek', 'label' => 'DeepSeek', 'url' => 'https://platform.deepseek.com/api_keys', 'url_label' => 'Obtener API Key de DeepSeek'],
-                        ['key' => 'kzmcito_api_key_mistral', 'label' => 'Mistral AI', 'url' => 'https://console.mistral.ai/api-keys/', 'url_label' => 'Obtener API Key de Mistral'],
-                        ['key' => 'kzmcito_api_key_groq', 'label' => 'Groq (LLaMA)', 'url' => 'https://console.groq.com/keys', 'url_label' => 'Obtener API Key de Groq'],
-                    ];
-
-                    foreach ($api_configs as $config):
-                        $has_key = !empty(get_option($config['key'], ''));
-                    ?>
-                    <tr>
-                        <th scope="row">
-                            <label for="<?php echo esc_attr($config['key']); ?>">
-                                <?php printf(__('API Key - %s', 'kzmcito-ia-seo'), $config['label']); ?>
-                                <?php if ($has_key): ?>
-                                    <span class="dashicons dashicons-yes" style="color: #46b450;" title="<?php _e('Configurada', 'kzmcito-ia-seo'); ?>"></span>
-                                <?php endif; ?>
-                            </label>
-                        </th>
-                        <td>
-                            <input type="password" name="<?php echo esc_attr($config['key']); ?>"
-                                id="<?php echo esc_attr($config['key']); ?>"
-                                value="<?php echo esc_attr(get_option($config['key'])); ?>" class="regular-text">
-                            <p class="description">
-                                <a href="<?php echo esc_url($config['url']); ?>" target="_blank" rel="noopener">
-                                    → <?php echo esc_html($config['url_label']); ?>
-                                </a>
-                            </p>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="kzmcito_google_maps_api_key">
-                                <?php _e('API Key - Google Maps', 'kzmcito-ia-seo'); ?>
-                            </label>
-                        </th>
-                        <td>
-                            <input type="password" name="kzmcito_google_maps_api_key" id="kzmcito_google_maps_api_key"
-                                value="<?php echo esc_attr(get_option('kzmcito_google_maps_api_key')); ?>" class="regular-text">
-                            <p class="description">
-                                <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener">
-                                    → <?php _e('Obtener API Key de Google Maps', 'kzmcito-ia-seo'); ?>
-                                </a>
-                            </p>
-                        </td>
-                    </tr>
-                </table>
+                <!-- ===== SECCIÓN: API KEYS (centralizada en Ajustes WP) ===== -->
+                <div class="kzmcito-api-keys-notice">
+                    <span class="dashicons dashicons-admin-network kzmcito-notice-icon"></span>
+                    <div>
+                        <strong><?php _e('Claves API (Fallback en Cascada)', 'kzmcito-ia-seo'); ?></strong><br>
+                        <?php
+                        // Contar keys activas para mostrar resumen
+                        $configured = 0;
+                        foreach (Kzmcito_API_Keys_Settings::get_api_key_configs() as $cfg) {
+                            if (!empty(get_option($cfg['key'], ''))) $configured++;
+                        }
+                        printf(
+                            /* translators: %d = número de claves configuradas */
+                            _n(
+                                'Tienes <strong>%d clave</strong> de API configurada.',
+                                'Tienes <strong>%d claves</strong> de API configuradas.',
+                                $configured,
+                                'kzmcito-ia-seo'
+                            ),
+                            $configured
+                        );
+                        ?>
+                        &nbsp;
+                        <a href="<?php echo esc_url(admin_url('options-general.php?page=kzmcito-api-keys')); ?>" class="button button-secondary button-small">
+                            <span class="dashicons dashicons-edit" style="margin-top:3px;"></span>
+                            <?php _e('Gestionar Claves API', 'kzmcito-ia-seo'); ?>
+                        </a>
+                    </div>
+                </div>
+                <style>
+                .kzmcito-api-keys-notice {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 12px;
+                    background: #eef6fb;
+                    border-left: 4px solid #2271b1;
+                    padding: 14px 18px;
+                    border-radius: 4px;
+                    margin: 10px 0 20px;
+                    font-size: 13.5px;
+                    line-height: 1.6;
+                }
+                .kzmcito-notice-icon {
+                    font-size: 26px;
+                    width: 26px;
+                    height: 26px;
+                    color: #2271b1;
+                    flex-shrink: 0;
+                    margin-top: 3px;
+                }
+                </style>
 
                 <!-- ===== SECCIÓN: CONTENIDO ===== -->
                 <h2 class="kzmcito-section-title">
@@ -844,21 +834,17 @@ class Kzmcito_IA_SEO_Admin_UI
      */
     private function save_settings()
     {
+        // Nota: Las API Keys ya NO se gestionan aquí.
+        // Se guardan a través de la Settings API de WordPress
+        // en Ajustes → API Keys KzmCITO (clase Kzmcito_API_Keys_Settings).
         $options = [
             'kzmcito_ai_model',
-            'kzmcito_api_key_claude',
-            'kzmcito_api_key_gemini',
-            'kzmcito_api_key_openai',
-            'kzmcito_api_key_deepseek',
-            'kzmcito_api_key_mistral',
-            'kzmcito_api_key_groq',
             'kzmcito_auto_process',
             'kzmcito_enable_summary',
             'kzmcito_min_words',
             'kzmcito_max_words',
             'kzmcito_enable_toc',
             'kzmcito_enable_faq',
-            'kzmcito_google_maps_api_key',
             'kzmcito_ga4_measurement_id',
         ];
 

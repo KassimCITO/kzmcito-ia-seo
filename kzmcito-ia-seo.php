@@ -114,6 +114,8 @@ class Kzmcito_IA_SEO
         // Admin UI (solo en admin)
         if (is_admin()) {
             require_once KZMCITO_IA_SEO_PLUGIN_DIR . 'includes/class-admin-ui.php';
+            // Configuración centralizada de API Keys (Ajustes WP, compartida entre plugins)
+            require_once KZMCITO_IA_SEO_PLUGIN_DIR . 'includes/class-api-keys-settings.php';
         }
     }
 
@@ -139,6 +141,9 @@ class Kzmcito_IA_SEO
             add_action('admin_menu', [$this, 'register_admin_menu']);
             add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
             add_action('add_meta_boxes', [$this, 'register_meta_boxes']);
+
+            // Registrar página de API Keys en Ajustes de WordPress
+            (new Kzmcito_API_Keys_Settings())->init();
         }
 
         // Frontend hooks (Traducción automática + estilos)

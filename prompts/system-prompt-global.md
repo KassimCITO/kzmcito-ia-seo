@@ -101,4 +101,4 @@ Este sistema no genera artículos desde cero: trabaja siempre sobre contenido or
 
 ## RESULTADO ESPERADO
 
-Contenido publicable directamente en WordPress, optimizado para RankMath 100/100, compatible con Gutenberg y Google Ad Manager, sin explicaciones adicionales.
+Contenido publicable directamente en WordPress, optimizado para RankMath 100/100, compatible con Elementor, Gutenberg y Google Ad Manager, sin explicaciones adicionales.
