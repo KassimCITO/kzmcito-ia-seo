@@ -31,6 +31,25 @@ class Kzmcito_IA_SEO_Meta_Fields
      */
     private function register_processing_meta()
     {
+        // Toggle per-post: activar/desactivar procesamiento IA
+        register_post_meta('post', '_kzmcito_ia_enabled', [
+            'type' => 'boolean',
+            'description' => __('Activar procesamiento IA para este post', 'kzmcito-ia-seo'),
+            'single' => true,
+            'default' => true,
+            'show_in_rest' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean',
+        ]);
+
+        register_post_meta('page', '_kzmcito_ia_enabled', [
+            'type' => 'boolean',
+            'description' => __('Activar procesamiento IA para esta página', 'kzmcito-ia-seo'),
+            'single' => true,
+            'default' => true,
+            'show_in_rest' => true,
+            'sanitize_callback' => 'rest_sanitize_boolean',
+        ]);
+
         // Última vez que se procesó el post
         register_post_meta('post', '_kzmcito_last_processed', [
             'type' => 'string',
@@ -286,6 +305,7 @@ class Kzmcito_IA_SEO_Meta_Fields
     {
         return [
             'processing' => [
+                'ia_enabled' => get_post_meta($post_id, '_kzmcito_ia_enabled', true),
                 'last_processed' => get_post_meta($post_id, '_kzmcito_last_processed', true),
                 'category_detected' => get_post_meta($post_id, '_kzmcito_category_detected', true),
                 'pending_seo_injection' => get_post_meta($post_id, '_kzmcito_pending_seo_injection', true),
@@ -318,6 +338,7 @@ class Kzmcito_IA_SEO_Meta_Fields
     public function clean_meta($post_id)
     {
         $meta_keys = [
+            '_kzmcito_ia_enabled',
             '_kzmcito_last_processed',
             '_kzmcito_category_detected',
             '_kzmcito_pending_seo_injection',

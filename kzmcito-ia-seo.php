@@ -3,7 +3,7 @@
  * Plugin Name: Engine Editorial KzmCITO IA SEO
  * Plugin URI: https://kzmcito.com
  * Description: Motor editorial agéntico con IA para transformación de contenidos, SEO automático, sumario Reuters, fallback multi-API y caché multilingüe. Compatible con cualquier sitio WordPress + RankMath.
- * Version: 3.0.0
+ * Version: 3.1.0
  * Author: KassimCITO
  * Author URI: https://kzmcito.com
  * Text Domain: kzmcito-ia-seo
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 /**
  * Constantes del Plugin
  */
-define('KZMCITO_IA_SEO_VERSION', '3.0.0');
+define('KZMCITO_IA_SEO_VERSION', '3.1.0');
 define('KZMCITO_IA_SEO_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('KZMCITO_IA_SEO_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('KZMCITO_IA_SEO_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -132,9 +132,10 @@ class Kzmcito_IA_SEO
         add_action('plugins_loaded', [$this, 'load_textdomain']);
         add_action('init', [$this, 'register_meta_fields']);
 
-        // Hooks de contenido (Pipeline de 4 fases)
+        // Hooks de contenido (Pipeline de 4 fases - se ejecuta al Guardar/Actualizar)
         add_filter('wp_insert_post_data', [$this, 'process_content_before_save'], 99, 2);
         add_action('save_post', [$this, 'process_meta_after_save'], 20, 3);
+        add_action('save_post', [$this, 'save_ia_enabled_toggle'], 10, 2);
 
         // Admin hooks
         if (is_admin()) {
@@ -185,7 +186,7 @@ class Kzmcito_IA_SEO
             'kzmcito_api_key_deepseek' => '',
             'kzmcito_api_key_mistral' => '',
             'kzmcito_api_key_groq' => '',
-            'kzmcito_auto_process' => 'no',
+            'kzmcito_auto_process' => 'yes', // Legacy: ahora controlado por toggle per-post
             'kzmcito_enable_summary' => 'yes',
             'kzmcito_min_words' => 850,
             'kzmcito_max_words' => 1200,
@@ -288,6 +289,10 @@ class Kzmcito_IA_SEO
 
     /**
      * Procesar contenido antes de guardar (Fases 1-3)
+     * 
+     * Se ejecuta al hacer clic en Guardar/Publicar/Actualizar.
+     * Respeta el toggle per-post _kzmcito_ia_enabled.
+     * Compatible con: Gutenberg, Classic Editor, WPBakery, Elementor.
      */
     public function process_content_before_save($data, $postarr)
     {
@@ -296,13 +301,33 @@ class Kzmcito_IA_SEO
             return $data;
         }
 
-        // Verificar si el procesamiento automático está habilitado
-        $auto_process = get_option('kzmcito_auto_process', 'no');
+        // Evitar auto-save y revisiones
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return $data;
+        }
+
+        // Evitar doble procesamiento
+        static $processing = false;
+        if ($processing) {
+            return $data;
+        }
+
+        // Verificar toggle per-post (desde $_POST para Classic/WPBakery/Elementor, o desde meta para Gutenberg)
+        $post_id = isset($postarr['ID']) ? intval($postarr['ID']) : 0;
+        $ia_enabled = $this->is_ia_enabled_for_post($post_id, $postarr);
+
+        if (!$ia_enabled) {
+            return $data;
+        }
+
+        // Verificar trigger: botón manual "Procesar Ahora" o guardado normal con toggle activo
         $manual_trigger = isset($_POST['kzmcito_process_now']) && $_POST['kzmcito_process_now'] === '1';
 
-        if ($auto_process === 'yes' || $manual_trigger) {
+        if ($ia_enabled || $manual_trigger) {
+            $processing = true;
             // Ejecutar el pipeline de procesamiento
             $processed_data = $this->core->process_content($data, $postarr);
+            $processing = false;
             return $processed_data;
         }
 
@@ -311,6 +336,10 @@ class Kzmcito_IA_SEO
 
     /**
      * Procesar metadatos después de guardar (Fase 4)
+     * 
+     * Se ejecuta al hacer clic en Guardar/Publicar/Actualizar.
+     * Respeta el toggle per-post _kzmcito_ia_enabled.
+     * Compatible con: Gutenberg, Classic Editor, WPBakery, Elementor.
      */
     public function process_meta_after_save($post_id, $post, $update)
     {
@@ -329,14 +358,89 @@ class Kzmcito_IA_SEO
             return;
         }
 
-        // Verificar si se debe procesar
-        $auto_process = get_option('kzmcito_auto_process', 'no');
+        // Verificar toggle per-post
+        $ia_enabled = $this->is_ia_enabled_for_post($post_id);
         $manual_trigger = isset($_POST['kzmcito_process_now']) && $_POST['kzmcito_process_now'] === '1';
 
-        if ($auto_process === 'yes' || $manual_trigger) {
+        if ($ia_enabled || $manual_trigger) {
             // Fase 4: Localización y caché de traducciones
             $this->core->process_translations($post_id, $post);
         }
+    }
+
+    /**
+     * Guardar el toggle de activación/desactivación desde el Editor Clásico/WPBakery/Elementor
+     * 
+     * @param int $post_id Post ID
+     * @param WP_Post $post Post object
+     */
+    public function save_ia_enabled_toggle($post_id, $post)
+    {
+        // Evitar auto-save
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+            return;
+        }
+
+        // Verificar nonce
+        if (!isset($_POST['kzmcito_ia_seo_nonce']) || !wp_verify_nonce($_POST['kzmcito_ia_seo_nonce'], 'kzmcito_ia_seo_meta_box')) {
+            return;
+        }
+
+        // Verificar permisos
+        if (!current_user_can('edit_post', $post_id)) {
+            return;
+        }
+
+        // Guardar el toggle (desde Classic Editor/WPBakery/Elementor)
+        if (isset($_POST['_kzmcito_ia_enabled'])) {
+            update_post_meta($post_id, '_kzmcito_ia_enabled', true);
+        } else {
+            // El checkbox no fue enviado = desactivado
+            // Solo actualizamos si el campo nonce existe (es decir, el meta box fue renderizado)
+            update_post_meta($post_id, '_kzmcito_ia_enabled', false);
+        }
+    }
+
+    /**
+     * Determinar si el procesamiento IA está habilitado para un post
+     * 
+     * Verifica el toggle per-post desde múltiples fuentes:
+     * - $_POST (Classic Editor, WPBakery, Elementor)
+     * - Post meta (Gutenberg via REST API, o valor guardado)
+     * 
+     * @param int $post_id Post ID
+     * @param array|null $postarr Optional post array from filter
+     * @return bool
+     */
+    private function is_ia_enabled_for_post($post_id, $postarr = null)
+    {
+        // 1. Comprobar desde $_POST (Editor Clásico, WPBakery, Elementor)
+        if (isset($_POST['kzmcito_ia_seo_nonce'])) {
+            return isset($_POST['_kzmcito_ia_enabled']);
+        }
+
+        // 2. Comprobar desde REST API (Gutenberg envía meta directamente)
+        if (defined('REST_REQUEST') && REST_REQUEST) {
+            // Gutenberg: el meta ya fue actualizado vía REST antes del save_post
+            $meta_value = get_post_meta($post_id, '_kzmcito_ia_enabled', true);
+            // Si no hay valor guardado, default es true
+            if ($meta_value === '') {
+                return true;
+            }
+            return (bool) $meta_value;
+        }
+
+        // 3. Fallback: leer de la base de datos
+        if ($post_id) {
+            $meta_value = get_post_meta($post_id, '_kzmcito_ia_enabled', true);
+            if ($meta_value === '') {
+                return true; // Default: activado
+            }
+            return (bool) $meta_value;
+        }
+
+        // 4. Post nuevo sin ID: default activado
+        return true;
     }
 
     /**
@@ -365,23 +469,59 @@ class Kzmcito_IA_SEO
 
     /**
      * Renderizar meta box de control
+     * 
+     * Compatible con: Classic Editor, WPBakery, Elementor.
+     * Incluye toggle para activar/desactivar procesamiento IA per-post.
      */
     public function render_control_meta_box($post)
     {
         wp_nonce_field('kzmcito_ia_seo_meta_box', 'kzmcito_ia_seo_nonce');
+
+        $ia_enabled = get_post_meta($post->ID, '_kzmcito_ia_enabled', true);
+        // Default: activado (si no existe el meta, se asume true)
+        if ($ia_enabled === '' || $ia_enabled === null) {
+            $ia_enabled = true;
+        }
+        $ia_enabled = (bool) $ia_enabled;
 
         $last_processed = get_post_meta($post->ID, '_kzmcito_last_processed', true);
         $category_detected = get_post_meta($post->ID, '_kzmcito_category_detected', true);
 
         ?>
         <div class="kzmcito-control-panel">
+            <!-- Toggle Activar/Desactivar IA -->
+            <div class="kzmcito-toggle-wrapper">
+                <label class="kzmcito-toggle-switch" for="kzmcito-ia-toggle">
+                    <input type="checkbox" 
+                           id="kzmcito-ia-toggle" 
+                           name="_kzmcito_ia_enabled" 
+                           value="1" 
+                           <?php checked($ia_enabled); ?> />
+                    <span class="kzmcito-toggle-slider"></span>
+                </label>
+                <span class="kzmcito-toggle-label">
+                    <?php _e('Activar KzmCITO IA SEO', 'kzmcito-ia-seo'); ?>
+                </span>
+            </div>
+
+            <div class="kzmcito-toggle-description" id="kzmcito-toggle-desc">
+                <?php if ($ia_enabled): ?>
+                    <span class="kzmcito-status-active"><?php _e('El procesamiento IA se ejecutará al guardar/actualizar.', 'kzmcito-ia-seo'); ?></span>
+                <?php else: ?>
+                    <span class="kzmcito-status-inactive"><?php _e('El procesamiento IA está desactivado para este contenido.', 'kzmcito-ia-seo'); ?></span>
+                <?php endif; ?>
+            </div>
+
+            <hr style="margin: 12px 0; border-color: #eee;" />
+
+            <!-- Estado del procesamiento -->
             <p>
                 <strong><?php _e('Estado:', 'kzmcito-ia-seo'); ?></strong><br>
                 <?php if ($last_processed): ?>
-                    <span class="dashicons dashicons-yes-alt" style="color: green;"></span>
+                    <span class="dashicons dashicons-yes-alt" style="color: #46b450;"></span>
                     <?php printf(__('Procesado: %s', 'kzmcito-ia-seo'), date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_processed))); ?>
                 <?php else: ?>
-                    <span class="dashicons dashicons-warning" style="color: orange;"></span>
+                    <span class="dashicons dashicons-warning" style="color: #ffb900;"></span>
                     <?php _e('No procesado', 'kzmcito-ia-seo'); ?>
                 <?php endif; ?>
             </p>
@@ -402,27 +542,23 @@ class Kzmcito_IA_SEO
             </p>
 
             <p class="description">
-                <?php _e('Ejecuta el pipeline completo de 4 fases: Análisis, Transformación, SEO e Inyección, y Localización.', 'kzmcito-ia-seo'); ?>
+                <?php _e('Pipeline: Análisis → Transformación → SEO → Localización.', 'kzmcito-ia-seo'); ?>
             </p>
         </div>
 
-        <style>
-            .kzmcito-control-panel {
-                padding: 10px 0;
-            }
-
-            .kzmcito-category-badge {
-                display: inline-block;
-                padding: 4px 8px;
-                background: #0073aa;
-                color: white;
-                border-radius: 3px;
-                font-size: 12px;
-            }
-        </style>
-
         <script>
             jQuery(document).ready(function ($) {
+                // Toggle description update
+                $('#kzmcito-ia-toggle').on('change', function () {
+                    var $desc = $('#kzmcito-toggle-desc');
+                    if ($(this).is(':checked')) {
+                        $desc.html('<span class="kzmcito-status-active"><?php _e('El procesamiento IA se ejecutará al guardar/actualizar.', 'kzmcito-ia-seo'); ?></span>');
+                    } else {
+                        $desc.html('<span class="kzmcito-status-inactive"><?php _e('El procesamiento IA está desactivado para este contenido.', 'kzmcito-ia-seo'); ?></span>');
+                    }
+                });
+
+                // Process now button
                 $('#kzmcito-process-now').on('click', function () {
                     if (confirm('<?php _e('¿Estás seguro de que deseas procesar este contenido con IA?', 'kzmcito-ia-seo'); ?>')) {
                         $('#kzmcito_process_now_input').val('1');
@@ -436,10 +572,13 @@ class Kzmcito_IA_SEO
 
     /**
      * Cargar assets de administración
+     * 
+     * Carga CSS y JS del admin + script de Gutenberg si aplica.
+     * Compatible con: Gutenberg, Classic Editor, WPBakery, Elementor.
      */
     public function enqueue_admin_assets($hook)
     {
-        // Solo cargar en páginas del plugin
+        // Solo cargar en páginas del plugin o en el editor de posts
         if (strpos($hook, 'kzmcito-ia-seo') === false && !in_array($hook, ['post.php', 'post-new.php'])) {
             return;
         }
@@ -468,6 +607,48 @@ class Kzmcito_IA_SEO
                 'error' => __('Error al procesar el contenido', 'kzmcito-ia-seo'),
             ]
         ]);
+
+        // Cargar panel de Gutenberg solo si el Block Editor está disponible
+        if (in_array($hook, ['post.php', 'post-new.php']) && $this->is_gutenberg_active()) {
+            wp_enqueue_script(
+                'kzmcito-ia-seo-gutenberg-panel',
+                KZMCITO_IA_SEO_PLUGIN_URL . 'admin/assets/js/gutenberg-panel.js',
+                ['wp-plugins', 'wp-edit-post', 'wp-data', 'wp-components', 'wp-element', 'wp-i18n'],
+                KZMCITO_IA_SEO_VERSION,
+                true
+            );
+        }
+    }
+
+    /**
+     * Verificar si Gutenberg (Block Editor) está activo para el post actual
+     * 
+     * Compatible con Classic Editor plugin y verificación de WPBakery/Elementor.
+     * 
+     * @return bool
+     */
+    private function is_gutenberg_active()
+    {
+        // Si la función use_block_editor_for_post_type no existe, Gutenberg no está disponible
+        if (!function_exists('use_block_editor_for_post_type')) {
+            return false;
+        }
+
+        // Verificar si el plugin Classic Editor está forzando el editor clásico
+        if (class_exists('Classic_Editor')) {
+            $editor_option = get_option('classic-editor-replace', 'no-replace');
+            if ($editor_option === 'replace') {
+                return false;
+            }
+        }
+
+        // Obtener el post type actual
+        $screen = get_current_screen();
+        if ($screen && $screen->post_type) {
+            return use_block_editor_for_post_type($screen->post_type);
+        }
+
+        return false;
     }
 
     /**

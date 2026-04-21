@@ -6,14 +6,15 @@ Plugin de WordPress desarrollado según la **Antigravity Master Specification** 
 
 ## Versión
 
-**2.0.0** - Implementación completa del pipeline de 4 fases
+**3.1.0** - Toggle per-post + procesamiento al Guardar/Actualizar
 
 ## Características Principales
 
 ### 🤖 Motor Agentico de IA
 - Soporte para múltiples modelos: Claude (Sonnet/Opus), Gemini Pro, GPT-4/3.5
-- Procesamiento automático o manual de contenidos
+- Procesamiento al Guardar/Publicar/Actualizar con toggle per-post
 - Sistema de prompts jerárquico (Global + Categoría)
+- Compatible con: Gutenberg, Editor Clásico, WPBakery, Elementor
 
 ### 📝 Pipeline de 4 Fases
 
@@ -76,7 +77,8 @@ kzmcito-ia-seo/
 │   │   ├── css/
 │   │   │   └── admin.css       # Estilos del admin
 │   │   └── js/
-│   │       └── admin.js        # JavaScript del admin
+│   │       ├── admin.js        # JavaScript del admin
+│   │       └── gutenberg-panel.js # Panel Gutenberg (toggle IA)
 │   └── views/                   # Vistas del admin
 ├── prompts/                     # Archivos de prompts
 │   ├── system-prompt-global.md
@@ -112,23 +114,30 @@ Configurar al menos una de las siguientes:
 ### Opciones de Configuración
 
 - **Modelo de IA**: Seleccionar modelo preferido
-- **Procesamiento Automático**: Activar/desactivar procesamiento al guardar
+- **Toggle Per-Post**: Activar/desactivar procesamiento IA para cada post individual (activado por defecto)
 - **Palabras Mínimas/Máximas**: Rango para expansión de contenido
 - **Habilitar TOC**: Insertar tabla de contenidos automáticamente
 - **Habilitar FAQ**: Generar FAQ con Schema JSON-LD
 
 ## Uso
 
+### Control de Procesamiento (Toggle Per-Post)
+
+1. Abrir editor de post o página
+2. Localizar el panel **KzmCITO IA SEO** (Gutenberg: sidebar derecho; Classic/WPBakery/Elementor: meta box lateral)
+3. Usar el **toggle** para activar o desactivar el procesamiento IA
+4. Al guardar/publicar/actualizar con el toggle **activo**, se ejecuta el pipeline automáticamente
+
 ### Procesamiento Manual
 
 1. Editar un post o página
-2. En el panel lateral, buscar **Engine Editorial IA**
+2. En el panel lateral, buscar **Engine Editorial IA** o **KzmCITO IA SEO**
 3. Hacer clic en **Procesar Ahora**
 4. El sistema ejecutará las 4 fases automáticamente
 
-### Procesamiento Automático
+### Procesamiento Automático al Guardar
 
-Si está habilitado en la configuración, el contenido se procesará automáticamente al guardar.
+Con el toggle per-post **activado** (por defecto), el contenido se procesará automáticamente al guardar/publicar/actualizar. Para omitir el procesamiento, desactive el toggle antes de guardar.
 
 ### Gestión de Prompts
 
@@ -149,6 +158,7 @@ Si está habilitado en la configuración, el contenido se procesará automática
 El plugin registra los siguientes campos meta:
 
 ### Procesamiento
+- `_kzmcito_ia_enabled`: Toggle de activación IA (boolean, default: true)
 - `_kzmcito_last_processed`: Fecha del último procesamiento
 - `_kzmcito_category_detected`: Categoría detectada
 - `_kzmcito_pending_seo_injection`: Inyección SEO pendiente
@@ -192,10 +202,19 @@ Si no se detecta una categoría predefinida, el sistema aplica únicamente el **
 ## Soporte y Desarrollo
 
 - **Autor**: KassimCITO
-- **Versión**: 2.0.0
+- **Versión**: 3.1.0
 - **Licencia**: GPL v2 or later
 
 ## Changelog
+
+### 3.1.0 (2026-04-21)
+- Toggle per-post para activar/desactivar procesamiento IA
+- Panel de control en Gutenberg (PluginDocumentSettingPanel reubicable)
+- Toggle switch visual en Editor Clásico, WPBakery y Elementor
+- Procesamiento ejecutado al Guardar/Publicar/Actualizar
+- Eliminación de dependencia de opción global `kzmcito_auto_process`
+- Protección contra doble procesamiento
+- Detección inteligente de Gutenberg vs. Classic Editor
 
 ### 2.0.0 (2026-01-25)
 - Implementación completa del pipeline de 4 fases
